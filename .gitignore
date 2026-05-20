@@ -5,6 +5,9 @@
 
 .env
 node_modules/
+dist/
+coverage/
+*.tsbuildinfo
 package-lock.json
 yarn.lock
 npm-debug.log*
@@ -19,6 +22,7 @@ Thumbs.db
 *.iso
 *.tar
 *.gz
+*.tgz
 *.tar.gz
 *.tar.bz2
 *.tar.xz
