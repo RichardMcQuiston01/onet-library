@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; data=json.load\\(open\\('resources/onet-web-services-openapi.json'\\)\\); print\\(list\\(data['paths'].keys\\(\\)\\)\\)\")",
+      "PowerShell($data = Get-Content \"F:\\\\www\\\\claude_accessible\\\\onet-library\\\\resources\\\\onet-web-services-openapi.json\" | ConvertFrom-Json; $data.paths.PSObject.Properties.Name)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

@@ -6,7 +6,7 @@
   "author": "Richard McQuiston <richard.mcquiston01@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RichardMcQuiston01/onet-library.git"
+    "url": "git+https://github.com/RichardMcQuiston01/onet-library.git"
   },
   "keywords": [
     "onet",
