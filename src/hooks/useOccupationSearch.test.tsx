@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, mock } from 'bun:test'
 import { renderHook, act } from '@testing-library/react'
 import { useOccupationSearch } from './useOccupationSearch'
 import type { OnetClient } from '../client/OnetClient'
@@ -12,9 +12,10 @@ const mockData = {
   ],
 }
 
-function makeMockClient(overrides?: Partial<OnetClient>): OnetClient {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function makeMockClient(overrides?: Record<string, any>): OnetClient {
   return {
-    searchOccupations: vi.fn().mockResolvedValue(mockData),
+    searchOccupations: mock(() => Promise.resolve(mockData)),
     ...overrides,
   } as unknown as OnetClient
 }
@@ -30,7 +31,7 @@ describe('useOccupationSearch', () => {
   it('sets loading while the request is in flight', async () => {
     let resolve!: (value: typeof mockData) => void
     const client = makeMockClient({
-      searchOccupations: vi.fn().mockReturnValue(new Promise((r) => { resolve = r })),
+      searchOccupations: mock(() => new Promise((r) => { resolve = r })),
     })
 
     const { result } = renderHook(() => useOccupationSearch(client))
@@ -55,7 +56,7 @@ describe('useOccupationSearch', () => {
 
   it('sets error and clears data on failure', async () => {
     const client = makeMockClient({
-      searchOccupations: vi.fn().mockRejectedValue(new Error('Network error')),
+      searchOccupations: mock(() => Promise.reject(new Error('Network error'))),
     })
 
     const { result } = renderHook(() => useOccupationSearch(client))
@@ -70,7 +71,7 @@ describe('useOccupationSearch', () => {
   })
 
   it('clears a previous error on a successful retry', async () => {
-    const searchOccupations = vi.fn()
+    const searchOccupations = mock()
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(mockData)
 

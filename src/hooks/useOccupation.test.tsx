@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, mock } from 'bun:test'
 import { renderHook, waitFor } from '@testing-library/react'
-import { useOccupation, useOccupationSkills, useOccupationJobZone } from './useOccupation'
+import {
+  useOccupation,
+  useOccupationSkills,
+  useOccupationAbilities,
+  useOccupationKnowledge,
+  useOccupationTasks,
+  useOccupationJobZone,
+} from './useOccupation'
 import type { OnetClient } from '../client/OnetClient'
 
 const mockOverview = {
@@ -13,9 +20,14 @@ const mockOverview = {
   custom_contents: [],
 }
 
-const mockSkills = {
+const mockElements = {
   start: 1, end: 1, total: 1,
   element: [{ id: '2.A.1.a', related: '', name: 'Reading Comprehension', description: '...' }],
+}
+
+const mockTasks = {
+  start: 1, end: 1, total: 1,
+  task: [{ id: '13999', related: '', title: 'Develop system specifications.' }],
 }
 
 const mockJobZone = {
@@ -30,9 +42,12 @@ const mockJobZone = {
 
 function makeMockClient(overrides?: Partial<OnetClient>): OnetClient {
   return {
-    getOccupation: vi.fn().mockResolvedValue(mockOverview),
-    getOccupationSkills: vi.fn().mockResolvedValue(mockSkills),
-    getOccupationJobZone: vi.fn().mockResolvedValue(mockJobZone),
+    getOccupation: mock(() => Promise.resolve(mockOverview)),
+    getOccupationSkills: mock(() => Promise.resolve(mockElements)),
+    getOccupationAbilities: mock(() => Promise.resolve(mockElements)),
+    getOccupationKnowledge: mock(() => Promise.resolve(mockElements)),
+    getOccupationTasks: mock(() => Promise.resolve(mockTasks)),
+    getOccupationJobZone: mock(() => Promise.resolve(mockJobZone)),
     ...overrides,
   } as unknown as OnetClient
 }
@@ -59,7 +74,9 @@ describe('useOccupation', () => {
   })
 
   it('sets error on failure', async () => {
-    const client = makeMockClient({ getOccupation: vi.fn().mockRejectedValue(new Error('Not found')) })
+    const client = makeMockClient({
+      getOccupation: mock(() => Promise.reject(new Error('Not found'))),
+    })
     const { result } = renderHook(() => useOccupation(client, '00-0000.00'))
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.error?.message).toBe('Not found')
@@ -80,7 +97,7 @@ describe('useOccupation', () => {
   })
 
   it('refetches when code changes', async () => {
-    const getOccupation = vi.fn().mockResolvedValue(mockOverview)
+    const getOccupation = mock(() => Promise.resolve(mockOverview))
     const client = makeMockClient({ getOccupation })
     const { rerender } = renderHook(
       ({ code }: { code: string }) => useOccupation(client, code),
@@ -99,11 +116,60 @@ describe('useOccupationSkills', () => {
     const { result } = renderHook(() => useOccupationSkills(client, '15-1252.00'))
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.data?.element[0].name).toBe('Reading Comprehension')
+    expect(result.current.error).toBeNull()
   })
 
   it('stays idle when code is null', () => {
     const client = makeMockClient()
     const { result } = renderHook(() => useOccupationSkills(client, null))
+    expect(result.current).toEqual({ data: null, loading: false, error: null })
+  })
+})
+
+describe('useOccupationAbilities', () => {
+  it('fetches abilities for the given code', async () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationAbilities(client, '15-1252.00'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.data?.element[0].name).toBe('Reading Comprehension')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('stays idle when code is null', () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationAbilities(client, null))
+    expect(result.current).toEqual({ data: null, loading: false, error: null })
+  })
+})
+
+describe('useOccupationKnowledge', () => {
+  it('fetches knowledge for the given code', async () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationKnowledge(client, '15-1252.00'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.data?.total).toBe(1)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('stays idle when code is null', () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationKnowledge(client, null))
+    expect(result.current).toEqual({ data: null, loading: false, error: null })
+  })
+})
+
+describe('useOccupationTasks', () => {
+  it('fetches tasks for the given code', async () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationTasks(client, '15-1252.00'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.data?.task[0].title).toBe('Develop system specifications.')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('stays idle when code is null', () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationTasks(client, null))
     expect(result.current).toEqual({ data: null, loading: false, error: null })
   })
 })
@@ -114,5 +180,12 @@ describe('useOccupationJobZone', () => {
     const { result } = renderHook(() => useOccupationJobZone(client, '15-1252.00'))
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.data?.code).toBe(4)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('stays idle when code is null', () => {
+    const client = makeMockClient()
+    const { result } = renderHook(() => useOccupationJobZone(client, null))
+    expect(result.current).toEqual({ data: null, loading: false, error: null })
   })
 })

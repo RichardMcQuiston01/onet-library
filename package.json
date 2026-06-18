@@ -34,8 +34,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "bun test --watch",
+    "test:run": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },
@@ -48,19 +48,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@happy-dom/global-registrator": "^20.0.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.0.0",
+    "@types/bun": "latest",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.37.0",
     "eslint-plugin-react-hooks": "^5.0.0",
-    "happy-dom": "^20.9.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^3.0.0"
+    "typescript-eslint": "^8.0.0"
   }
 }

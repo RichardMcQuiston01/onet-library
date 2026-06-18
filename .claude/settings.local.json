@@ -6,7 +6,16 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(bun --version)",
+      "Bash(bun pm *)",
+      "Bash(bun info *)",
+      "Bash(npm info *)",
+      "Bash(bun install *)",
+      "Bash(bun test *)",
+      "Bash(bun run *)",
+      "Bash(git diff *)",
+      "Bash(git rm *)"
     ]
   }
 }
