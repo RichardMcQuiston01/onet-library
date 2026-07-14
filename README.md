@@ -2,6 +2,10 @@
 
 A framework-agnostic React component library for interacting with the [O\*NET Web Services API](https://services.onetcenter.org/reference/start/overview), written in TypeScript.
 
+## Support
+
+If this library saved you some reverse-engineering, consider [buying me a coffee](https://www.paypal.com/ncp/payment/VDTESHTRR7684). ☕
+
 ## Installation
 
 ```bash
@@ -15,23 +19,23 @@ React 18 or later is required as a peer dependency.
 ## Quick start
 
 ```tsx
-import { OnetClient, useOccupation } from '@richardmcquiston01/onet-library'
+import { OnetClient, useOccupation } from "@richardmcquiston01/onet-library";
 
-const client = new OnetClient('YOUR_API_KEY')
+const client = new OnetClient("YOUR_API_KEY");
 
 function OccupationCard({ code }: { code: string }) {
-  const { data, loading, error } = useOccupation(client, code)
+  const { data, loading, error } = useOccupation(client, code);
 
-  if (loading) return <p>Loading…</p>
-  if (error) return <p>Error: {error.message}</p>
-  if (!data) return null
+  if (loading) return <p>Loading…</p>;
+  if (error) return <p>Error: {error.message}</p>;
+  if (!data) return null;
 
   return (
     <div>
       <h2>{data.title}</h2>
       <p>{data.description}</p>
     </div>
-  )
+  );
 }
 ```
 
@@ -44,47 +48,47 @@ An O\*NET API key is required. Request one at [services.onetcenter.org/developer
 The `OnetClient` class is the core HTTP layer. Instantiate it once with your API key and pass it down to hooks or components.
 
 ```typescript
-import { OnetClient } from '@richardmcquiston01/onet-library'
+import { OnetClient } from "@richardmcquiston01/onet-library";
 
-const client = new OnetClient('YOUR_API_KEY')
+const client = new OnetClient("YOUR_API_KEY");
 ```
 
 All methods return typed promises and throw `OnetApiError` (which carries a `.status` code) on non-2xx responses.
 
 ### Search
 
-| Method | Returns |
-|---|---|
+| Method                                         | Returns                           |
+| ---------------------------------------------- | --------------------------------- |
 | `searchOccupations({ keyword, start?, end? })` | `Promise<OccupationSearchResult>` |
 
 ### Occupation overview
 
-| Method | Returns |
-|---|---|
+| Method                | Returns                       |
+| --------------------- | ----------------------------- |
 | `getOccupation(code)` | `Promise<OccupationOverview>` |
 
 ### Summary sections
 
 All summary methods accept an optional `{ start?, end? }` pagination object (marked `*` below). `code` is an O\*NET-SOC code such as `15-1252.00`.
 
-| Method | Section | Returns |
-|---|---|---|
-| `getOccupationAbilities(code, params*)` | `abilities` | `Promise<OccupationElementSummary>` |
-| `getOccupationSkills(code, params*)` | `skills` | `Promise<OccupationElementSummary>` |
-| `getOccupationKnowledge(code, params*)` | `knowledge` | `Promise<OccupationElementSummary>` |
-| `getOccupationWorkStyles(code, params*)` | `work_styles` | `Promise<OccupationElementSummary>` |
-| `getOccupationWorkActivities(code, params*)` | `work_activities` | `Promise<OccupationElementSummary>` |
-| `getOccupationWorkContext(code, params*)` | `work_context` | `Promise<WorkContextSummary>` |
-| `getOccupationTasks(code, params*)` | `tasks` | `Promise<TasksSummary>` |
-| `getOccupationTechnologySkills(code, params*)` | `technology_skills` | `Promise<TechnologySkillsSummary>` |
-| `getOccupationRelatedOccupations(code, params*)` | `related_occupations` | `Promise<RelatedOccupationsSummary>` |
-| `getOccupationJobZone(code)` | `job_zone` | `Promise<JobZoneSummary>` |
-| `getOccupationInterests(code)` | `interests` | `Promise<InterestsSummary>` |
-| `getOccupationEducation(code)` | `education` | `Promise<EducationSummary>` |
-| `getOccupationDetailedWorkActivities(code, params*)` | `detailed_work_activities` | `Promise<DetailedWorkActivitiesSummary>` |
-| `getOccupationApprenticeship(code, params*)` | `apprenticeship` | `Promise<ApprenticeshipSummary>` |
+| Method                                                 | Section                     | Returns                                    |
+| ------------------------------------------------------ | --------------------------- | ------------------------------------------ |
+| `getOccupationAbilities(code, params*)`                | `abilities`                 | `Promise<OccupationElementSummary>`        |
+| `getOccupationSkills(code, params*)`                   | `skills`                    | `Promise<OccupationElementSummary>`        |
+| `getOccupationKnowledge(code, params*)`                | `knowledge`                 | `Promise<OccupationElementSummary>`        |
+| `getOccupationWorkStyles(code, params*)`               | `work_styles`               | `Promise<OccupationElementSummary>`        |
+| `getOccupationWorkActivities(code, params*)`           | `work_activities`           | `Promise<OccupationElementSummary>`        |
+| `getOccupationWorkContext(code, params*)`              | `work_context`              | `Promise<WorkContextSummary>`              |
+| `getOccupationTasks(code, params*)`                    | `tasks`                     | `Promise<TasksSummary>`                    |
+| `getOccupationTechnologySkills(code, params*)`         | `technology_skills`         | `Promise<TechnologySkillsSummary>`         |
+| `getOccupationRelatedOccupations(code, params*)`       | `related_occupations`       | `Promise<RelatedOccupationsSummary>`       |
+| `getOccupationJobZone(code)`                           | `job_zone`                  | `Promise<JobZoneSummary>`                  |
+| `getOccupationInterests(code)`                         | `interests`                 | `Promise<InterestsSummary>`                |
+| `getOccupationEducation(code)`                         | `education`                 | `Promise<EducationSummary>`                |
+| `getOccupationDetailedWorkActivities(code, params*)`   | `detailed_work_activities`  | `Promise<DetailedWorkActivitiesSummary>`   |
+| `getOccupationApprenticeship(code, params*)`           | `apprenticeship`            | `Promise<ApprenticeshipSummary>`           |
 | `getOccupationProfessionalAssociations(code, params*)` | `professional_associations` | `Promise<ProfessionalAssociationsSummary>` |
-| `getOccupationMilitaryCareerSummaries(code, params*)` | `military_career_summaries` | `Promise<MilitaryCareerSummariesResult>` |
+| `getOccupationMilitaryCareerSummaries(code, params*)`  | `military_career_summaries` | `Promise<MilitaryCareerSummariesResult>`   |
 
 ---
 
@@ -96,9 +100,9 @@ Every declarative hook returns an `OnetQueryResult<T>`:
 
 ```typescript
 interface OnetQueryResult<T> {
-  data: T | null
-  loading: boolean
-  error: Error | null
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
 }
 ```
 
@@ -107,18 +111,20 @@ interface OnetQueryResult<T> {
 An imperative hook for keyword search. The returned `search` function triggers a new request.
 
 ```tsx
-import { useOccupationSearch } from '@richardmcquiston01/onet-library'
+import { useOccupationSearch } from "@richardmcquiston01/onet-library";
 
 function SearchPage() {
-  const { data, loading, error, search } = useOccupationSearch(client)
+  const { data, loading, error, search } = useOccupationSearch(client);
 
   return (
     <>
-      <button onClick={() => search({ keyword: 'nurse' })}>Search</button>
+      <button onClick={() => search({ keyword: "nurse" })}>Search</button>
       {loading && <p>Searching…</p>}
-      {data?.occupation.map((occ) => <p key={occ.code}>{occ.title}</p>)}
+      {data?.occupation.map((occ) => (
+        <p key={occ.code}>{occ.title}</p>
+      ))}
     </>
-  )
+  );
 }
 ```
 
@@ -129,14 +135,14 @@ function SearchPage() {
 Fetches the top-level overview for an occupation (title, description, tags, section links).
 
 ```tsx
-const { data, loading, error } = useOccupation(client, '15-1252.00')
+const { data, loading, error } = useOccupation(client, "15-1252.00");
 // data: OccupationOverview | null
 ```
 
 ### `useOccupationSkills`
 
 ```tsx
-const { data } = useOccupationSkills(client, '15-1252.00')
+const { data } = useOccupationSkills(client, "15-1252.00");
 // data: OccupationElementSummary | null
 // data.element — array of { id, name, description, related }
 ```
@@ -146,21 +152,21 @@ Accepts optional pagination: `useOccupationSkills(client, code, { start: 1, end:
 ### `useOccupationAbilities`
 
 ```tsx
-const { data } = useOccupationAbilities(client, '15-1252.00')
+const { data } = useOccupationAbilities(client, "15-1252.00");
 // data: OccupationElementSummary | null
 ```
 
 ### `useOccupationKnowledge`
 
 ```tsx
-const { data } = useOccupationKnowledge(client, '15-1252.00')
+const { data } = useOccupationKnowledge(client, "15-1252.00");
 // data: OccupationElementSummary | null
 ```
 
 ### `useOccupationTasks`
 
 ```tsx
-const { data } = useOccupationTasks(client, '15-1252.00')
+const { data } = useOccupationTasks(client, "15-1252.00");
 // data: TasksSummary | null
 // data.task — array of { id, title, related }
 ```
@@ -168,7 +174,7 @@ const { data } = useOccupationTasks(client, '15-1252.00')
 ### `useOccupationJobZone`
 
 ```tsx
-const { data } = useOccupationJobZone(client, '15-1252.00')
+const { data } = useOccupationJobZone(client, "15-1252.00");
 // data: JobZoneSummary | null
 // data.code — 1–5 (preparation level)
 // data.title, data.education, data.related_experience, etc.
@@ -181,19 +187,19 @@ const { data } = useOccupationJobZone(client, '15-1252.00')
 A ready-made search input that wires `useOccupationSearch` to a form and result list.
 
 ```tsx
-import { OnetClient, OccupationSearch } from '@richardmcquiston01/onet-library'
+import { OnetClient, OccupationSearch } from "@richardmcquiston01/onet-library";
 
-const client = new OnetClient('YOUR_API_KEY')
+const client = new OnetClient("YOUR_API_KEY");
 
 function App() {
-  return <OccupationSearch client={client} />
+  return <OccupationSearch client={client} />;
 }
 ```
 
 **Props:**
 
-| Prop | Type | Description |
-|---|---|---|
+| Prop     | Type         | Description             |
+| -------- | ------------ | ----------------------- |
 | `client` | `OnetClient` | The API client instance |
 
 The component renders a search input with a submit button, a result count, an unordered list of occupations (title, O\*NET-SOC code, and a ★ for Bright Outlook roles), and an error message on failure.
@@ -203,13 +209,13 @@ The component renders a search input with a submit button, a result count, an un
 ## Error handling
 
 ```typescript
-import { OnetApiError } from '@richardmcquiston01/onet-library'
+import { OnetApiError } from "@richardmcquiston01/onet-library";
 
 try {
-  const result = await client.searchOccupations({ keyword: 'nurse' })
+  const result = await client.searchOccupations({ keyword: "nurse" });
 } catch (err) {
   if (err instanceof OnetApiError) {
-    console.error(`API error ${err.status}: ${err.message}`)
+    console.error(`API error ${err.status}: ${err.message}`);
   }
 }
 ```
@@ -240,7 +246,7 @@ import type {
   ApprenticeshipSummary,
   PaginationParams,
   OnetQueryResult,
-} from '@richardmcquiston01/onet-library'
+} from "@richardmcquiston01/onet-library";
 ```
 
 ---
@@ -263,14 +269,14 @@ cp .env.example .env   # then add your ONET_API_KEY
 
 ### Commands
 
-| Command | Description |
-|---|---|
-| `bun run build` | Compile to `dist/` (ESM + CJS + type declarations) |
-| `bun run dev` | Build in watch mode |
-| `bun run test` | Run tests in watch mode |
-| `bun run test:run` | Run tests once |
-| `bun run typecheck` | Type-check without emitting |
-| `bun run lint` | Lint `src/` |
+| Command             | Description                                        |
+| ------------------- | -------------------------------------------------- |
+| `bun run build`     | Compile to `dist/` (ESM + CJS + type declarations) |
+| `bun run dev`       | Build in watch mode                                |
+| `bun run test`      | Run tests in watch mode                            |
+| `bun run test:run`  | Run tests once                                     |
+| `bun run typecheck` | Type-check without emitting                        |
+| `bun run lint`      | Lint `src/`                                        |
 
 ### Testing the package locally
 
