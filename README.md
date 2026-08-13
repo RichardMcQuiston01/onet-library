@@ -290,6 +290,21 @@ Install the tarball in another project to verify the published output before rel
 
 ## Publishing
 
+Publishing is automated via GitHub Actions and triggered by **git tags**. To release a new version:
+
+1. Bump the `version` in `package.json` (following [semver](https://semver.org/)) and update `CHANGELOG.md`.
+2. Commit and promote the change to the `release` branch.
+3. Tag the release commit and push the tag:
+
+   ```bash
+   git tag v1.2.0
+   git push origin v1.2.0
+   ```
+
+Pushing a `vX.Y.Z` tag triggers the [`Publish to NPM`](.github/workflows/publish.yml) workflow, which lints, typechecks, tests, builds, and runs `npm publish --provenance --access public` using the repository's `NPM_TOKEN` secret. A guard step fails the run if the tag does not match the `version` in `package.json`, so bump the version first. The workflow can also be run manually via **workflow_dispatch**.
+
+To publish manually instead:
+
 ```bash
 bun run build
 npm publish
