@@ -4,7 +4,7 @@ A framework-agnostic React component library for interacting with the [O\*NET We
 
 ## Support
 
-If this library saved you some reverse-engineering, consider [buying me a coffee](https://www.paypal.com/ncp/payment/VDTESHTRR7684). ☕
+If this library saved you some reverse-engineering, consider [buying me a coffee](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800). ☕
 
 ## Installation
 
