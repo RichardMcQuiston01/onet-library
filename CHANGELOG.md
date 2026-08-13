@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-13
+
+### Added
+- **Automated NPM publishing** via GitHub Actions (`.github/workflows/publish.yml`). Pushing a `vX.Y.Z` tag lints, typechecks, tests, builds, and runs `npm publish --provenance --access public` using the repository's `NPM_TOKEN` secret. A guard step fails the run if the tag does not match the `version` in `package.json`.
+- **Continuous integration** workflow (`.github/workflows/ci.yml`) running lint, typecheck, test, and build on pushes and pull requests to `dev` and `main`.
+
 ### Changed
 - Replaced Vitest with **Bun's built-in test runner** (`bun test`). All test imports migrated from `vitest` to `bun:test`; `vi.fn()` replaced with `mock()`, global fetch stubbing replaced with direct `globalThis` assignment.
 - Replaced `happy-dom` dev dependency with `@happy-dom/global-registrator` registered via a `bunfig.toml` preload, providing a consistent DOM environment for React hook tests.
