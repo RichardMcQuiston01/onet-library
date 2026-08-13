@@ -290,6 +290,16 @@ Install the tarball in another project to verify the published output before rel
 
 ## Publishing
 
+Publishing is automated via GitHub Actions. To release a new version:
+
+1. Bump the `version` in `package.json` (following [semver](https://semver.org/)) and update `CHANGELOG.md`.
+2. Commit and merge the change to `dev`/`main`.
+3. Create a [GitHub Release](https://github.com/RichardMcQuiston01/onet-library/releases/new) with a tag matching the new version (e.g. `v1.2.0`).
+
+Publishing the release triggers the [`Publish to NPM`](.github/workflows/publish.yml) workflow, which lints, typechecks, tests, builds, and runs `npm publish --provenance --access public` using the repository's `NPM_TOKEN` secret. The workflow can also be run manually via **workflow_dispatch**.
+
+To publish manually instead:
+
 ```bash
 bun run build
 npm publish
