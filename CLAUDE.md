@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a framework-agnostic React component library for interacting with the O*NET Web Services API, written in TypeScript. It will be published to NPM as `@richardmcquiston01/onet-library`.
+A TypeScript library for the O*NET Web Services API: a typed API client (`OnetClient`, with HTTP handled by `OnetTransport`), React hooks for every occupation summary section, and an `OccupationSearch` component. Published to NPM as `@richardmcquiston01/onet-library`.
+
+Only the `/online` portal is wrapped so far. Releases publish from `main` when a `vX.Y.Z` tag is pushed (`.github/workflows/publish.yml`); the tag must match `package.json`.
 
 ## Commands
 
