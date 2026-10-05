@@ -1,10 +1,8 @@
 # @richardmcquiston01/onet-library
 
-A framework-agnostic React component library for interacting with the [O\*NET Web Services API](https://services.onetcenter.org/reference/start/overview), written in TypeScript.
+Search and explore career data from the [O\*NET Web Services API](https://services.onetcenter.org/reference/start/overview) in your React app. Look up jobs and see the skills, abilities, knowledge, tasks, and education they need. The library gives you a ready-to-use API client, React hooks, and a search component, all written in TypeScript.
 
-## Support
-
-If this library saved you some reverse-engineering, consider [buying me a coffee](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800). ☕
+It covers the O\*NET `/online` portal. The `/veterans`, `/mnm`, and `/mpp` portals, plus crosswalks, industry lookups, and the Interest Profiler, are not wrapped yet. You can still reach them by extending `OnetClient` or calling `fetch` with your API key. The full API schema is in [`resources/onet-web-services-openapi.json`](resources/onet-web-services-openapi.json).
 
 ## Installation
 
@@ -18,28 +16,15 @@ React 18 or later is required as a peer dependency.
 
 ## Quick start
 
-```tsx
-import { OnetClient, useOccupation } from "@richardmcquiston01/onet-library";
+See [QUICK_START.md](QUICK_START.md) for setup, commands, local testing, and a usage example.
 
-const client = new OnetClient("YOUR_API_KEY");
+## Buy Me a Coffee
 
-function OccupationCard({ code }: { code: string }) {
-  const { data, loading, error } = useOccupation(client, code);
+If this app, code, or repository has helped you or someone you know, please consider donating. I appreciate any help to offset the costs of development and/or AI Credits.
 
-  if (loading) return <p>Loading…</p>;
-  if (error) return <p>Error: {error.message}</p>;
-  if (!data) return null;
+[**Donate via Stripe**](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800), or scan:
 
-  return (
-    <div>
-      <h2>{data.title}</h2>
-      <p>{data.description}</p>
-    </div>
-  );
-}
-```
-
-An O\*NET API key is required. Request one at [services.onetcenter.org/developer](https://services.onetcenter.org/developer/).
+[![Donate via Stripe](./donate.svg)](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800)
 
 ---
 
@@ -250,75 +235,6 @@ import type {
 ```
 
 ---
-
-## Development
-
-### Prerequisites
-
-- [Bun](https://bun.sh) 1.0+
-- An O\*NET API key (see [Requesting an API key](https://services.onetcenter.org/developer/))
-
-### Getting started
-
-```bash
-git clone https://github.com/RichardMcQuiston01/onet-library.git
-cd onet-library
-bun install
-cp .env.example .env   # then add your ONET_API_KEY
-```
-
-### Commands
-
-| Command             | Description                                        |
-| ------------------- | -------------------------------------------------- |
-| `bun run build`     | Compile to `dist/` (ESM + CJS + type declarations) |
-| `bun run dev`       | Build in watch mode                                |
-| `bun run test`      | Run tests in watch mode                            |
-| `bun run test:run`  | Run tests once                                     |
-| `bun run typecheck` | Type-check without emitting                        |
-| `bun run lint`      | Lint `src/`                                        |
-
-### Testing the package locally
-
-```bash
-bun run build
-bun pack
-# produces richardmcquiston01-onet-library-x.x.x.tgz
-```
-
-Install the tarball in another project to verify the published output before releasing.
-
-## Publishing
-
-Publishing is automated via GitHub Actions and triggered by **git tags**. To release a new version:
-
-1. Bump the `version` in `package.json` (following [semver](https://semver.org/)) and update `CHANGELOG.md`.
-2. Commit and promote the change to the `release` branch.
-3. Tag the release commit and push the tag:
-
-   ```bash
-   git tag v1.2.0
-   git push origin v1.2.0
-   ```
-
-Pushing a `vX.Y.Z` tag triggers the [`Publish to NPM`](.github/workflows/publish.yml) workflow, which lints, typechecks, tests, builds, and runs `npm publish --provenance --access public` using the repository's `NPM_TOKEN` secret. A guard step fails the run if the tag does not match the `version` in `package.json`, so bump the version first. The workflow can also be run manually via **workflow_dispatch**.
-
-To publish manually instead:
-
-```bash
-bun run build
-npm publish
-```
-
-The `publishConfig` in `package.json` sets public access automatically.
-
----
-
-## API coverage
-
-The library wraps the O\*NET Web Services v2 `/online` portal. The full API schema is at [`resources/onet-web-services-openapi.json`](resources/onet-web-services-openapi.json).
-
-Additional portals (`/veterans`, `/mnm`, `/mpp`) and endpoints such as crosswalks, industry lookups, and the Interest Profiler are not yet wrapped but can be called directly through `OnetClient` by extending the class or using `fetch` with your API key.
 
 ## Resources
 
