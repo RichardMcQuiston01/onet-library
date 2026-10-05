@@ -1,7 +1,7 @@
 {
   "name": "@richardmcquiston01/onet-library",
   "version": "1.2.0",
-  "description": "Framework-agnostic React component library for the O*NET Web Services API",
+  "description": "Search and explore O*NET career data in React: an API client, hooks, and components for occupations, skills, abilities, and more, written in TypeScript.",
   "license": "MIT",
   "author": "Richard McQuiston <richard.mcquiston01@gmail.com>",
   "repository": {
