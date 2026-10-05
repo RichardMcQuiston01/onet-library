@@ -30,7 +30,7 @@ If this app, code, or repository has helped you or someone you know, please cons
 
 ## OnetClient
 
-The `OnetClient` class is the core HTTP layer. Instantiate it once with your API key and pass it down to hooks or components.
+The `OnetClient` class is the core HTTP layer. Create it once and pass it to hooks and components.
 
 ```typescript
 import { OnetClient } from "@richardmcquiston01/onet-library";
@@ -38,23 +38,41 @@ import { OnetClient } from "@richardmcquiston01/onet-library";
 const client = new OnetClient("YOUR_API_KEY");
 ```
 
-All methods return typed promises and throw `OnetApiError` (which carries a `.status` code) on non-2xx responses.
+### Options
 
-### Search
+The constructor takes an optional second argument:
 
-| Method                                         | Returns                           |
-| ---------------------------------------------- | --------------------------------- |
-| `searchOccupations({ keyword, start?, end? })` | `Promise<OccupationSearchResult>` |
+| Option            | Type        | Default                               | Description                                                         |
+| ----------------- | ----------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `baseUrl`         | `string`    | `https://services.onetcenter.org/ws`  | Root URL for requests. Point it at your own proxy (see below).      |
+| `fetch`           | `FetchLike` | global `fetch`                        | Custom `fetch` implementation (testing, SSR, retries).              |
+| `cacheTtlMs`      | `number`    | `0` (off)                             | Reuse successful responses for this many ms; identical in-flight requests are shared. |
+| `cacheMaxEntries` | `number`    | `100`                                 | Cache size limit; the oldest entry is evicted first.                |
 
-### Occupation overview
+```typescript
+const client = new OnetClient("YOUR_API_KEY", { cacheTtlMs: 5 * 60_000 });
+client.clearCache(); // drop cached responses
+```
 
-| Method                | Returns                       |
-| --------------------- | ----------------------------- |
-| `getOccupation(code)` | `Promise<OccupationOverview>` |
+### Keeping your API key private
 
-### Summary sections
+In a browser app, any key passed to `OnetClient` is visible to visitors. For public sites, forward requests through your own server endpoint that adds the `X-API-Key` header, and leave the key out on the client:
 
-All summary methods accept an optional `{ start?, end? }` pagination object (marked `*` below). `code` is an O\*NET-SOC code such as `15-1252.00`.
+```typescript
+const client = new OnetClient(undefined, { baseUrl: "/api/onet" });
+```
+
+### Methods
+
+Every method returns a typed promise and accepts a trailing `{ signal }` option to cancel the request. `code` is an O\*NET-SOC code such as `15-1252.00`; malformed codes are rejected before any request is sent.
+
+| Method                                          | Returns                                   |
+| ----------------------------------------------- | ----------------------------------------- |
+| `searchOccupations({ keyword, start?, end? })`  | `Promise<OccupationSearchResult>`         |
+| `getOccupation(code)`                           | `Promise<OccupationOverview>`             |
+| `getOccupationSummary(code, section, params?)`  | Type for `section` (see below)            |
+
+`getOccupationSummary` fetches any summary section by name, which helps when the section is chosen at runtime. Each section also has a named shortcut. Paginated sections accept an optional `{ start?, end? }` (1-based, inclusive), marked `*` below.
 
 | Method                                                 | Section                     | Returns                                    |
 | ------------------------------------------------------ | --------------------------- | ------------------------------------------ |
@@ -79,21 +97,23 @@ All summary methods accept an optional `{ start?, end? }` pagination object (mar
 
 ## React hooks
 
-All hooks accept a `client` instance as the first argument. Declarative hooks (everything except `useOccupationSearch`) fetch automatically when their `code` argument changes and stay idle when `code` is `null`.
+All hooks take the `client` as their first argument. Declarative hooks (everything except `useOccupationSearch`) fetch automatically when `code` or the page bounds change, and stay idle when `code` is `null`. When inputs change or the component unmounts, the in-flight request is aborted, so a late response can never overwrite newer data.
 
 Every declarative hook returns an `OnetQueryResult<T>`:
 
 ```typescript
 interface OnetQueryResult<T> {
-  data: T | null;
+  data: T | null; // keeps the previous response while a refetch loads
   loading: boolean;
   error: Error | null;
 }
 ```
 
+Because `data` stays visible during a refetch, check `loading` if you need to know whether it matches the current `code`.
+
 ### `useOccupationSearch`
 
-An imperative hook for keyword search. The returned `search` function triggers a new request.
+An imperative hook for keyword search. Calling `search` aborts any search still in flight, so only the latest results are shown.
 
 ```tsx
 import { useOccupationSearch } from "@richardmcquiston01/onet-library";
@@ -113,8 +133,6 @@ function SearchPage() {
 }
 ```
 
-**Signature:** `useOccupationSearch(client) → { data, loading, error, search }`
-
 ### `useOccupation`
 
 Fetches the top-level overview for an occupation (title, description, tags, section links).
@@ -124,52 +142,50 @@ const { data, loading, error } = useOccupation(client, "15-1252.00");
 // data: OccupationOverview | null
 ```
 
-### `useOccupationSkills`
+### `useOccupationSummary`
+
+Fetches any summary section by name. The return type follows the section.
 
 ```tsx
-const { data } = useOccupationSkills(client, "15-1252.00");
-// data: OccupationElementSummary | null
-// data.element — array of { id, name, description, related }
-```
-
-Accepts optional pagination: `useOccupationSkills(client, code, { start: 1, end: 10 })`.
-
-### `useOccupationAbilities`
-
-```tsx
-const { data } = useOccupationAbilities(client, "15-1252.00");
+const { data } = useOccupationSummary(client, "15-1252.00", "skills", { start: 1, end: 10 });
 // data: OccupationElementSummary | null
 ```
 
-### `useOccupationKnowledge`
+Page bounds are compared by value, so passing an inline `{ start, end }` object does not cause extra requests.
+
+### Section hooks
+
+Each summary section also has its own hook. Paginated hooks accept an optional third `params` argument.
+
+| Hook                                    | Data type                         |
+| --------------------------------------- | --------------------------------- |
+| `useOccupationSkills`                   | `OccupationElementSummary`        |
+| `useOccupationAbilities`                | `OccupationElementSummary`        |
+| `useOccupationKnowledge`                | `OccupationElementSummary`        |
+| `useOccupationWorkStyles`               | `OccupationElementSummary`        |
+| `useOccupationWorkActivities`           | `OccupationElementSummary`        |
+| `useOccupationWorkContext`              | `WorkContextSummary`              |
+| `useOccupationTasks`                    | `TasksSummary`                    |
+| `useOccupationTechnologySkills`         | `TechnologySkillsSummary`         |
+| `useOccupationRelatedOccupations`       | `RelatedOccupationsSummary`       |
+| `useOccupationJobZone`                  | `JobZoneSummary` (no params)      |
+| `useOccupationInterests`                | `InterestsSummary` (no params)    |
+| `useOccupationEducation`                | `EducationSummary` (no params)    |
+| `useOccupationDetailedWorkActivities`   | `DetailedWorkActivitiesSummary`   |
+| `useOccupationApprenticeship`           | `ApprenticeshipSummary`           |
+| `useOccupationProfessionalAssociations` | `ProfessionalAssociationsSummary` |
+| `useOccupationMilitaryCareerSummaries`  | `MilitaryCareerSummariesResult`   |
 
 ```tsx
-const { data } = useOccupationKnowledge(client, "15-1252.00");
-// data: OccupationElementSummary | null
-```
-
-### `useOccupationTasks`
-
-```tsx
-const { data } = useOccupationTasks(client, "15-1252.00");
-// data: TasksSummary | null
+const { data } = useOccupationTasks(client, "15-1252.00", { start: 1, end: 5 });
 // data.task — array of { id, title, related }
-```
-
-### `useOccupationJobZone`
-
-```tsx
-const { data } = useOccupationJobZone(client, "15-1252.00");
-// data: JobZoneSummary | null
-// data.code — 1–5 (preparation level)
-// data.title, data.education, data.related_experience, etc.
 ```
 
 ---
 
 ## OccupationSearch component
 
-A ready-made search input that wires `useOccupationSearch` to a form and result list.
+A ready-made, unstyled search box with a result count, result list, and previous/next paging.
 
 ```tsx
 import { OnetClient, OccupationSearch } from "@richardmcquiston01/onet-library";
@@ -177,62 +193,81 @@ import { OnetClient, OccupationSearch } from "@richardmcquiston01/onet-library";
 const client = new OnetClient("YOUR_API_KEY");
 
 function App() {
-  return <OccupationSearch client={client} />;
+  return (
+    <OccupationSearch
+      client={client}
+      pageSize={10}
+      onSelect={(occupation) => console.log(occupation.code)}
+    />
+  );
 }
 ```
 
 **Props:**
 
-| Prop     | Type         | Description             |
-| -------- | ------------ | ----------------------- |
-| `client` | `OnetClient` | The API client instance |
+| Prop               | Type                                    | Description                                                              |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------------------ |
+| `client`           | `OnetClient`                            | The API client instance (required)                                       |
+| `pageSize`         | `number`                                | Results per page. Default `20`.                                          |
+| `placeholder`      | `string`                                | Search box placeholder.                                                  |
+| `onSelect`         | `(occupation) => void`                  | Called when a result is clicked; results render as buttons when set.     |
+| `renderOccupation` | `(occupation) => ReactNode`             | Custom content for each result row.                                      |
 
-The component renders a search input with a submit button, a result count, an unordered list of occupations (title, O\*NET-SOC code, and a ★ for Bright Outlook roles), and an error message on failure.
+By default each row shows the title, O\*NET-SOC code, and a ★ for Bright Outlook roles. Errors appear in an element with `role="alert"`.
 
 ---
 
 ## Error handling
 
+Every error the library throws extends `OnetError`:
+
+| Class                 | When                                                                  | Extra fields          |
+| --------------------- | --------------------------------------------------------------------- | --------------------- |
+| `OnetApiError`        | The API answered with a non-2xx status                                | `status`, `endpoint`  |
+| `OnetRequestError`    | The network call failed, or the response was not valid JSON           | `endpoint`, `cause`   |
+| `OnetValidationError` | An argument was malformed (e.g. a bad O\*NET-SOC code); nothing sent  | —                     |
+
+Messages name the endpoint and include the response body, e.g. `O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found: …`.
+
 ```typescript
-import { OnetApiError } from "@richardmcquiston01/onet-library";
+import { OnetApiError, OnetError } from "@richardmcquiston01/onet-library";
 
 try {
   const result = await client.searchOccupations({ keyword: "nurse" });
 } catch (err) {
-  if (err instanceof OnetApiError) {
-    console.error(`API error ${err.status}: ${err.message}`);
+  if (err instanceof OnetApiError && err.status === 401) {
+    console.error("Check your O*NET API key:", err.message);
+  } else if (err instanceof OnetError) {
+    console.error(err.message);
   }
 }
 ```
 
-`OnetApiError` extends `Error` and adds a `.status` number (the HTTP status code).
+Aborted requests reject with the standard `AbortError` and are never wrapped.
 
 ---
 
 ## TypeScript
 
-The library ships `.d.ts` declarations and full source maps. All public types are exported from the package root:
+The library ships `.d.ts` declarations, source maps, and JSDoc on every public export. All public types are exported from the package root, including:
 
 ```typescript
 import type {
+  OnetClientOptions,
+  RequestOptions,
+  OnetQueryResult,
+  OccupationSummarySection,
+  OccupationSummarySectionMap,
   OccupationOverview,
   OccupationElementSummary,
   OccupationSearchResult,
   JobZoneSummary,
   TasksSummary,
-  WorkContextSummary,
-  TechnologySkillsSummary,
-  InterestsSummary,
-  EducationSummary,
-  RelatedOccupationsSummary,
-  ProfessionalAssociationsSummary,
-  MilitaryCareerSummariesResult,
-  DetailedWorkActivitiesSummary,
-  ApprenticeshipSummary,
   PaginationParams,
-  OnetQueryResult,
 } from "@richardmcquiston01/onet-library";
 ```
+
+Response fields use snake_case to match the O\*NET JSON exactly.
 
 ---
 

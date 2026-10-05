@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsup'
+import {defineConfig} from 'tsup';
 
 export default defineConfig({
   entry: ['src/index.ts'],
@@ -7,4 +7,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: ['react', 'react-dom'],
-})
+  // Excludes test files so their bun:test types never reach the published declarations.
+  tsconfig: 'tsconfig.build.json',
+});

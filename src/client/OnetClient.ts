@@ -9,134 +9,287 @@ import type {
   OccupationOverview,
   OccupationSearchParams,
   OccupationSearchResult,
+  OccupationSummarySection,
+  OccupationSummarySectionMap,
   PaginationParams,
   ProfessionalAssociationsSummary,
   RelatedOccupationsSummary,
   TasksSummary,
   TechnologySkillsSummary,
   WorkContextSummary,
-} from '../types'
+} from '../types';
+import {OnetValidationError} from './errors';
+import {OnetTransport} from './OnetTransport';
+import type {OnetClientOptions, RequestOptions} from './OnetTransport';
 
-const BASE_URL = 'https://services.onetcenter.org/ws'
+export {OnetApiError} from './errors';
 
-export class OnetApiError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message)
-    this.name = 'OnetApiError'
-  }
-}
+/** O*NET-SOC codes look like `15-1252.00`: two digits, four digits, two-digit suffix. */
+const ONET_SOC_CODE_PATTERN = /^\d{2}-\d{4}\.\d{2}$/;
 
+/**
+ * Typed client for the O*NET Web Services `/online` portal.
+ *
+ * Create one instance per API key and share it; hooks and components take it
+ * as an argument. Every method returns a promise that rejects with an
+ * `OnetError` subclass:
+ * - `OnetValidationError` — an argument such as `code` is malformed (no request is sent).
+ * - `OnetApiError` — the API answered with a non-2xx status (see `.status`).
+ * - `OnetRequestError` — the network call failed or the response was not JSON.
+ *
+ * Methods also accept a trailing {@link RequestOptions} with an `AbortSignal`.
+ *
+ * @example
+ * const client = new OnetClient('YOUR_API_KEY');
+ * const skills = await client.getOccupationSkills('15-1252.00', {start: 1, end: 10});
+ */
 export class OnetClient {
-  constructor(private readonly apiKey: string) {}
+  private readonly transport: OnetTransport;
 
-  private async get<T>(
-    path: string,
-    params?: Record<string, string | number | undefined>,
-  ): Promise<T> {
-    const url = new URL(`${BASE_URL}${path}`)
-    if (params) {
-      for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined) {
-          url.searchParams.set(key, String(value))
-        }
-      }
-    }
-    const response = await fetch(url.toString(), {
-      headers: {
-        'X-API-Key': this.apiKey,
-        Accept: 'application/json',
-      },
-    })
-    if (!response.ok) {
-      throw new OnetApiError(response.status, await response.text())
-    }
-    return response.json() as Promise<T>
+  /**
+   * @param apiKey O*NET API key, sent as the `X-API-Key` header. Pass
+   *     `undefined` when `options.baseUrl` points at a proxy that adds it.
+   * @param options Base URL, custom `fetch`, and response caching settings.
+   */
+  constructor(apiKey?: string, options: OnetClientOptions = {}) {
+    this.transport = new OnetTransport(apiKey, options);
   }
 
-  private summaryPath(code: string, section: string): string {
-    return `/online/occupations/${code}/summary/${section}`
-  }
-
-  private getSummary<T>(path: string, params?: PaginationParams): Promise<T> {
-    return this.get<T>(path, params as Record<string, string | number | undefined>)
+  /** Drops every cached response. Has no effect unless `cacheTtlMs` was set. */
+  clearCache(): void {
+    this.transport.clearCache();
   }
 
   // ── Search ────────────────────────────────────────────────────────────────
 
-  searchOccupations(params: OccupationSearchParams): Promise<OccupationSearchResult> {
-    const { keyword, start, end } = params
-    return this.get<OccupationSearchResult>('/online/search', { keyword, start, end })
+  /** Finds occupations matching a keyword (`GET /online/search`). */
+  searchOccupations(
+    params: OccupationSearchParams,
+    options?: RequestOptions
+  ): Promise<OccupationSearchResult> {
+    const {keyword, start, end} = params;
+    return this.transport.get<OccupationSearchResult>(
+      '/online/search',
+      {keyword, start, end},
+      options
+    );
   }
 
   // ── Occupation overview ───────────────────────────────────────────────────
 
-  getOccupation(code: string): Promise<OccupationOverview> {
-    return this.get<OccupationOverview>(`/online/occupations/${code}/`)
+  /** Fetches an occupation's title, description, tags and section links. */
+  async getOccupation(
+    code: string,
+    options?: RequestOptions
+  ): Promise<OccupationOverview> {
+    return this.transport.get<OccupationOverview>(
+      `${occupationPath(code)}/`,
+      undefined,
+      options
+    );
   }
 
   // ── Summary sections ──────────────────────────────────────────────────────
 
-  getOccupationAbilities(code: string, params?: PaginationParams): Promise<OccupationElementSummary> {
-    return this.getSummary(this.summaryPath(code, 'abilities'), params)
+  /**
+   * Fetches any summary section by name. The named methods below are
+   * shortcuts for this; use it directly when the section is chosen at runtime.
+   *
+   * @param code O*NET-SOC code, e.g. `15-1252.00`.
+   * @param section Section name, e.g. `'skills'`; it determines the return type.
+   * @param params Optional page bounds. Ignored by non-paginated sections
+   *     (`job_zone`, `interests`, `education`).
+   */
+  async getOccupationSummary<S extends OccupationSummarySection>(
+    code: string,
+    section: S,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationSummarySectionMap[S]> {
+    return this.transport.get<OccupationSummarySectionMap[S]>(
+      `${occupationPath(code)}/summary/${section}`,
+      {start: params?.start, end: params?.end},
+      options
+    );
   }
 
-  getOccupationSkills(code: string, params?: PaginationParams): Promise<OccupationElementSummary> {
-    return this.getSummary(this.summaryPath(code, 'skills'), params)
+  /** Abilities ranked by importance for the occupation. */
+  getOccupationAbilities(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationElementSummary> {
+    return this.getOccupationSummary(code, 'abilities', params, options);
   }
 
-  getOccupationKnowledge(code: string, params?: PaginationParams): Promise<OccupationElementSummary> {
-    return this.getSummary(this.summaryPath(code, 'knowledge'), params)
+  /** Skills ranked by importance for the occupation. */
+  getOccupationSkills(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationElementSummary> {
+    return this.getOccupationSummary(code, 'skills', params, options);
   }
 
-  getOccupationWorkStyles(code: string, params?: PaginationParams): Promise<OccupationElementSummary> {
-    return this.getSummary(this.summaryPath(code, 'work_styles'), params)
+  /** Knowledge areas ranked by importance for the occupation. */
+  getOccupationKnowledge(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationElementSummary> {
+    return this.getOccupationSummary(code, 'knowledge', params, options);
   }
 
-  getOccupationWorkActivities(code: string, params?: PaginationParams): Promise<OccupationElementSummary> {
-    return this.getSummary(this.summaryPath(code, 'work_activities'), params)
+  /** Personal characteristics that affect job performance. */
+  getOccupationWorkStyles(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationElementSummary> {
+    return this.getOccupationSummary(code, 'work_styles', params, options);
   }
 
-  getOccupationWorkContext(code: string, params?: PaginationParams): Promise<WorkContextSummary> {
-    return this.getSummary(this.summaryPath(code, 'work_context'), params)
+  /** General types of work behaviour performed in the occupation. */
+  getOccupationWorkActivities(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<OccupationElementSummary> {
+    return this.getOccupationSummary(code, 'work_activities', params, options);
   }
 
-  getOccupationTasks(code: string, params?: PaginationParams): Promise<TasksSummary> {
-    return this.getSummary(this.summaryPath(code, 'tasks'), params)
+  /** Physical and social working conditions, each with a response distribution. */
+  getOccupationWorkContext(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<WorkContextSummary> {
+    return this.getOccupationSummary(code, 'work_context', params, options);
   }
 
-  getOccupationTechnologySkills(code: string, params?: PaginationParams): Promise<TechnologySkillsSummary> {
-    return this.getSummary(this.summaryPath(code, 'technology_skills'), params)
+  /** Occupation-specific tasks. */
+  getOccupationTasks(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<TasksSummary> {
+    return this.getOccupationSummary(code, 'tasks', params, options);
   }
 
-  getOccupationRelatedOccupations(code: string, params?: PaginationParams): Promise<RelatedOccupationsSummary> {
-    return this.getSummary(this.summaryPath(code, 'related_occupations'), params)
+  /** Software and technology categories used, flagging hot and in-demand items. */
+  getOccupationTechnologySkills(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<TechnologySkillsSummary> {
+    return this.getOccupationSummary(
+      code,
+      'technology_skills',
+      params,
+      options
+    );
   }
 
-  getOccupationJobZone(code: string): Promise<JobZoneSummary> {
-    return this.getSummary(this.summaryPath(code, 'job_zone'))
+  /** Occupations with similar work. */
+  getOccupationRelatedOccupations(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<RelatedOccupationsSummary> {
+    return this.getOccupationSummary(
+      code,
+      'related_occupations',
+      params,
+      options
+    );
   }
 
-  getOccupationInterests(code: string): Promise<InterestsSummary> {
-    return this.getSummary(this.summaryPath(code, 'interests'))
+  /** Job Zone (1–5): how much education, experience and training is needed. */
+  getOccupationJobZone(
+    code: string,
+    options?: RequestOptions
+  ): Promise<JobZoneSummary> {
+    return this.getOccupationSummary(code, 'job_zone', undefined, options);
   }
 
-  getOccupationEducation(code: string): Promise<EducationSummary> {
-    return this.getSummary(this.summaryPath(code, 'education'))
+  /** RIASEC interest code and the interest profile behind it. */
+  getOccupationInterests(
+    code: string,
+    options?: RequestOptions
+  ): Promise<InterestsSummary> {
+    return this.getOccupationSummary(code, 'interests', undefined, options);
   }
 
-  getOccupationDetailedWorkActivities(code: string, params?: PaginationParams): Promise<DetailedWorkActivitiesSummary> {
-    return this.getSummary(this.summaryPath(code, 'detailed_work_activities'), params)
+  /** Distribution of education levels reported by workers. */
+  getOccupationEducation(
+    code: string,
+    options?: RequestOptions
+  ): Promise<EducationSummary> {
+    return this.getOccupationSummary(code, 'education', undefined, options);
   }
 
-  getOccupationApprenticeship(code: string, params?: PaginationParams): Promise<ApprenticeshipSummary> {
-    return this.getSummary(this.summaryPath(code, 'apprenticeship'), params)
+  /** Detailed work activities (more specific than `work_activities`). */
+  getOccupationDetailedWorkActivities(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<DetailedWorkActivitiesSummary> {
+    return this.getOccupationSummary(
+      code,
+      'detailed_work_activities',
+      params,
+      options
+    );
   }
 
-  getOccupationProfessionalAssociations(code: string, params?: PaginationParams): Promise<ProfessionalAssociationsSummary> {
-    return this.getSummary(this.summaryPath(code, 'professional_associations'), params)
+  /** Registered apprenticeship titles linked to the occupation. */
+  getOccupationApprenticeship(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<ApprenticeshipSummary> {
+    return this.getOccupationSummary(code, 'apprenticeship', params, options);
   }
 
-  getOccupationMilitaryCareerSummaries(code: string, params?: PaginationParams): Promise<MilitaryCareerSummariesResult> {
-    return this.getSummary(this.summaryPath(code, 'military_career_summaries'), params)
+  /** Professional associations relevant to the occupation. */
+  getOccupationProfessionalAssociations(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<ProfessionalAssociationsSummary> {
+    return this.getOccupationSummary(
+      code,
+      'professional_associations',
+      params,
+      options
+    );
   }
+
+  /** Related military career summaries. */
+  getOccupationMilitaryCareerSummaries(
+    code: string,
+    params?: PaginationParams,
+    options?: RequestOptions
+  ): Promise<MilitaryCareerSummariesResult> {
+    return this.getOccupationSummary(
+      code,
+      'military_career_summaries',
+      params,
+      options
+    );
+  }
+}
+
+/**
+ * Builds `/online/occupations/{code}` after checking the code's format, so a
+ * malformed value fails fast with a clear message and can never rewrite the
+ * request path (e.g. `../../about`).
+ */
+function occupationPath(code: string): string {
+  if (!ONET_SOC_CODE_PATTERN.test(code)) {
+    throw new OnetValidationError(
+      `Invalid O*NET-SOC code "${code}": expected the form 00-0000.00 (e.g. 15-1252.00).`
+    );
+  }
+  return `/online/occupations/${encodeURIComponent(code)}`;
 }

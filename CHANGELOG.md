@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`useOccupationSearch` race condition:** a slow earlier search could overwrite newer results. Each new search now aborts the previous one, and only the latest response updates state.
+- **Unescaped occupation codes:** codes are now validated against the O\*NET-SOC format (`00-0000.00`) and URL-encoded. A malformed code (including path-traversal input such as `../../about`) rejects with `OnetValidationError` before any request is sent.
+- Declarative hooks no longer report a one-render "idle" state before their first fetch starts.
+
+### Added
+- `OnetClient` options: `baseUrl` (e.g. a server-side proxy so the API key stays out of the browser), `fetch`, `cacheTtlMs` and `cacheMaxEntries` (opt-in response caching with shared in-flight requests), plus `clearCache()`. The API key is now optional when a proxy supplies it.
+- Every client method accepts a trailing `{ signal }` option. Hooks abort in-flight requests when their inputs change or they unmount.
+- `getOccupationSummary(code, section, params?)` and `useOccupationSummary(...)` for fetching any summary section by name, typed through `OccupationSummarySectionMap`.
+- Hooks for the remaining 11 summary sections: work styles, work activities, work context, technology skills, related occupations, interests, education, detailed work activities, apprenticeship, professional associations and military career summaries.
+- Error classes `OnetError` (base), `OnetRequestError` (network failures and invalid JSON, with `cause`) and `OnetValidationError`. `OnetApiError` gains an `endpoint` field.
+- `OccupationSearch` props: `pageSize` with previous/next paging, `onSelect`, `renderOccupation`, `placeholder`. The search box now has an accessible label.
+- JSDoc on every public export.
+- Prettier with Google TypeScript style settings (`bun run format`, `bun run format:check`; checked in CI) and an ESLint rule requiring explicit return types on exported functions.
+
+### Changed
+- Error messages are more descriptive: they name the endpoint and HTTP status and include the response body (truncated to 500 characters).
+- While refetching, hooks keep the previous `data` visible instead of clearing it; check `loading` to tell whether it is current.
+- HTTP handling moved from `OnetClient` into a separate `OnetTransport` class; `OnetClient` now only describes the endpoints.
+- `typecheck` now covers test files. Builds use `tsconfig.build.json`, which excludes them.
+
 ## [1.2.0] — 2026-08-13
 
 ### Added

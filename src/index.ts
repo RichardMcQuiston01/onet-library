@@ -1,14 +1,39 @@
-export { OnetClient, OnetApiError } from './client/OnetClient'
-export { useOccupationSearch } from './hooks/useOccupationSearch'
+export {OnetClient} from './client/OnetClient';
+export {
+  OnetError,
+  OnetApiError,
+  OnetRequestError,
+  OnetValidationError,
+} from './client/errors';
+export type {
+  FetchLike,
+  OnetClientOptions,
+  RequestOptions,
+} from './client/OnetTransport';
+export {useOccupationSearch} from './hooks/useOccupationSearch';
+export type {UseOccupationSearchReturn} from './hooks/useOccupationSearch';
 export {
   useOccupation,
+  useOccupationSummary,
   useOccupationSkills,
   useOccupationAbilities,
   useOccupationKnowledge,
+  useOccupationWorkStyles,
+  useOccupationWorkActivities,
+  useOccupationWorkContext,
   useOccupationTasks,
+  useOccupationTechnologySkills,
+  useOccupationRelatedOccupations,
   useOccupationJobZone,
-} from './hooks/useOccupation'
-export { OccupationSearch } from './components/OccupationSearch'
+  useOccupationInterests,
+  useOccupationEducation,
+  useOccupationDetailedWorkActivities,
+  useOccupationApprenticeship,
+  useOccupationProfessionalAssociations,
+  useOccupationMilitaryCareerSummaries,
+} from './hooks/useOccupation';
+export {OccupationSearch} from './components/OccupationSearch';
+export type {OccupationSearchProps} from './components/OccupationSearch';
 export type {
   // Hook return type
   OnetQueryResult,
@@ -25,6 +50,9 @@ export type {
   OccupationOverview,
   OccupationUpdated,
   OccupationUpdatedContent,
+  // Summary — section lookup
+  OccupationSummarySection,
+  OccupationSummarySectionMap,
   // Summary — shared element
   OccupationElement,
   OccupationElementSummary,
@@ -53,4 +81,4 @@ export type {
   DetailedWorkActivity,
   DetailedWorkActivitiesSummary,
   ApprenticeshipSummary,
-} from './types'
+} from './types';
