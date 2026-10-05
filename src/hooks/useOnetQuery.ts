@@ -1,28 +1,54 @@
-import { useState, useEffect } from 'react'
-import type { OnetQueryResult } from '../types'
+import {useEffect, useState} from 'react';
+import type {OnetQueryResult} from '../types';
+import {toError} from '../utils/toError';
 
-// Internal hook used by declarative data hooks (useOccupation, etc.).
-// Fires whenever `fetcher` identity changes; pass null to stay idle.
-// Uses a cancelled flag to discard results from superseded requests.
-export function useOnetQuery<T>(fetcher: (() => Promise<T>) | null): OnetQueryResult<T> {
-  const [state, setState] = useState<OnetQueryResult<T>>({ data: null, loading: false, error: null })
+/** A request that can be cancelled through the supplied signal. */
+export type OnetFetcher<T> = (signal: AbortSignal) => Promise<T>;
+
+const IDLE_STATE: OnetQueryResult<never> = {
+  data: null,
+  loading: false,
+  error: null,
+};
+
+/**
+ * Internal engine behind the declarative data hooks (`useOccupation`, etc.).
+ *
+ * Runs `fetcher` whenever its identity changes, so callers must memoise it;
+ * passing `null` resets to idle without requesting anything. When the fetcher
+ * changes or the component unmounts, the in-flight request is aborted and its
+ * result discarded. During a refetch the previous `data` stays visible.
+ */
+export function useOnetQuery<T>(
+  fetcher: OnetFetcher<T> | null
+): OnetQueryResult<T> {
+  // Start in the loading state when there is work to do, so the first render
+  // does not briefly report "idle with no data".
+  const [state, setState] = useState<OnetQueryResult<T>>(() =>
+    fetcher === null ? IDLE_STATE : {...IDLE_STATE, loading: true}
+  );
 
   useEffect(() => {
-    if (!fetcher) {
-      setState({ data: null, loading: false, error: null })
-      return
+    if (fetcher === null) {
+      setState(IDLE_STATE);
+      return;
     }
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    fetcher()
-      .then((data) => { if (!cancelled) setState({ data, loading: false, error: null }) })
-      .catch((err) => {
-        if (!cancelled) {
-          setState({ data: null, loading: false, error: err instanceof Error ? err : new Error(String(err)) })
+    const controller = new AbortController();
+    setState(previous => ({data: previous.data, loading: true, error: null}));
+    fetcher(controller.signal).then(
+      data => {
+        if (!controller.signal.aborted) {
+          setState({data, loading: false, error: null});
         }
-      })
-    return () => { cancelled = true }
-  }, [fetcher])
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted) {
+          setState({data: null, loading: false, error: toError(error)});
+        }
+      }
+    );
+    return () => controller.abort();
+  }, [fetcher]);
 
-  return state
+  return state;
 }

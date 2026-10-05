@@ -9,12 +9,14 @@ This is a framework-agnostic React component library for interacting with the O*
 ## Commands
 
 ```bash
-npm run build       # compile ESM + CJS + .d.ts into dist/
-npm run dev         # build in watch mode
-npm run typecheck   # tsc --noEmit
-npm run test        # vitest (watch mode)
-npm run test:run    # vitest (single run)
-npm run lint        # eslint src/
+bun run build         # compile ESM + CJS + .d.ts into dist/
+bun run dev           # build in watch mode
+bun run typecheck     # tsc --noEmit (includes test files)
+bun run test          # bun test (watch mode)
+bun run test:run      # bun test (single run)
+bun run lint          # eslint src/
+bun run format        # prettier (Google TypeScript style: semicolons, single quotes)
+bun run format:check  # verify formatting (runs in CI)
 ```
 
 ## Environment Setup

@@ -24,6 +24,7 @@ cp .env.example .env   # then add your ONET_API_KEY
 | `bun run test:run`  | Run tests once                                     |
 | `bun run typecheck` | Type-check without emitting                        |
 | `bun run lint`      | Lint `src/`                                        |
+| `bun run format`    | Format code with Prettier (Google TypeScript style) |
 
 ## Testing the package locally
 

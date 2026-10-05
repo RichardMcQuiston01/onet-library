@@ -1,50 +1,136 @@
-import { useState } from 'react'
-import { useOccupationSearch } from '../hooks/useOccupationSearch'
-import type { OnetClient } from '../client/OnetClient'
+import {useState} from 'react';
+import type {FormEvent, ReactElement, ReactNode} from 'react';
+import {useOccupationSearch} from '../hooks/useOccupationSearch';
+import type {OnetClient} from '../client/OnetClient';
+import type {OccupationReference} from '../types';
 
-interface OccupationSearchProps {
-  client: OnetClient
+const DEFAULT_PAGE_SIZE = 20;
+
+/** Props for {@link OccupationSearch}. */
+export interface OccupationSearchProps {
+  /** Shared `OnetClient` instance. */
+  client: OnetClient;
+  /** Results requested per page. @defaultValue `20` */
+  pageSize?: number;
+  /** Placeholder text for the search box. */
+  placeholder?: string;
+  /**
+   * Called when a result is chosen. When provided, each result's title is
+   * rendered as a button instead of plain text.
+   */
+  onSelect?: (occupation: OccupationReference) => void;
+  /**
+   * Replaces the default content of each result row (title, code and a ★ for
+   * Bright Outlook). `onSelect` still wraps whatever this returns.
+   */
+  renderOccupation?: (occupation: OccupationReference) => ReactNode;
 }
 
-export function OccupationSearch({ client }: OccupationSearchProps) {
-  const [keyword, setKeyword] = useState('')
-  const { data, loading, error, search } = useOccupationSearch(client)
+/**
+ * Ready-made occupation search: a search box, result count, result list,
+ * previous/next paging and an error message. Unstyled, so it inherits the
+ * host app's CSS.
+ */
+export function OccupationSearch({
+  client,
+  pageSize = DEFAULT_PAGE_SIZE,
+  placeholder = 'Search occupations...',
+  onSelect,
+  renderOccupation = defaultRenderOccupation,
+}: OccupationSearchProps): ReactElement {
+  const [keyword, setKeyword] = useState('');
+  // The keyword behind the visible results, so paging is unaffected by edits
+  // to the input that have not been submitted yet.
+  const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const {data, loading, error, search} = useOccupationSearch(client);
+  const trimmedKeyword = keyword.trim();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (keyword.trim()) {
-      search({ keyword: keyword.trim() })
+  const searchPage = (searchKeyword: string, start: number): void => {
+    void search({keyword: searchKeyword, start, end: start + pageSize - 1});
+  };
+
+  const handleSubmit = (event: FormEvent): void => {
+    event.preventDefault();
+    if (trimmedKeyword) {
+      setSubmittedKeyword(trimmedKeyword);
+      searchPage(trimmedKeyword, 1);
     }
-  }
+  };
+
+  const hasPreviousPage = data !== null && data.start > 1;
+  const hasNextPage = data !== null && data.end < data.total;
 
   return (
     <div>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} role="search">
         <input
           type="search"
+          aria-label="Search occupations"
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder="Search occupations..."
+          onChange={event => setKeyword(event.target.value)}
+          placeholder={placeholder}
           disabled={loading}
         />
-        <button type="submit" disabled={loading || !keyword.trim()}>
+        <button type="submit" disabled={loading || !trimmedKeyword}>
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
       {error && <p role="alert">{error.message}</p>}
       {data && (
         <>
-          <p>{data.total} result{data.total !== 1 ? 's' : ''}</p>
+          <p aria-live="polite">
+            {data.total} result{data.total === 1 ? '' : 's'}
+          </p>
           <ul>
-            {data.occupation.map((occ) => (
-              <li key={occ.code}>
-                {occ.title} <small>({occ.code})</small>
-                {occ.tags.bright_outlook && ' ★'}
+            {data.occupation.map(occupation => (
+              <li key={occupation.code}>
+                {onSelect ? (
+                  <button type="button" onClick={() => onSelect(occupation)}>
+                    {renderOccupation(occupation)}
+                  </button>
+                ) : (
+                  renderOccupation(occupation)
+                )}
               </li>
             ))}
           </ul>
+          {(hasPreviousPage || hasNextPage) && (
+            <nav aria-label="Search result pages">
+              <button
+                type="button"
+                disabled={loading || !hasPreviousPage}
+                onClick={() =>
+                  searchPage(
+                    submittedKeyword,
+                    Math.max(1, data.start - pageSize)
+                  )
+                }
+              >
+                Previous
+              </button>
+              <span>
+                {data.start}–{data.end} of {data.total}
+              </span>
+              <button
+                type="button"
+                disabled={loading || !hasNextPage}
+                onClick={() => searchPage(submittedKeyword, data.end + 1)}
+              >
+                Next
+              </button>
+            </nav>
+          )}
         </>
       )}
     </div>
-  )
+  );
+}
+
+function defaultRenderOccupation(occupation: OccupationReference): ReactNode {
+  return (
+    <>
+      {occupation.title} <small>({occupation.code})</small>
+      {occupation.tags.bright_outlook && ' ★'}
+    </>
+  );
 }
