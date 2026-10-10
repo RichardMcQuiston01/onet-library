@@ -584,6 +584,52 @@ describe('OnetClient', () => {
     });
   });
 
+  describe('baseUrl and API key validation', () => {
+    const okFetch: FetchLike = mock(() =>
+      Promise.resolve(new Response('{}', {status: 200}))
+    );
+
+    it.each([
+      'javascript:alert(1)/online/search',
+      'file:///C:/Windows/win.ini',
+      'ftp://example.com/ws',
+    ])('rejects the non-HTTP baseUrl %s before any request', async baseUrl => {
+      const fetchSpy = mock(okFetch);
+      const guarded = new OnetClient('key', {baseUrl, fetch: fetchSpy});
+      await expect(guarded.getOccupation('15-1252.00')).rejects.toBeInstanceOf(
+        OnetValidationError
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects a baseUrl containing credentials', async () => {
+      const fetchSpy = mock(okFetch);
+      const guarded = new OnetClient('key', {
+        baseUrl: 'https://user:secret@evil.test/ws',
+        fetch: fetchSpy,
+      });
+      await expect(guarded.getOccupation('15-1252.00')).rejects.toBeInstanceOf(
+        OnetValidationError
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each(['bad\r\nX-Evil: 1', 'bad\nkey', 'bad\0key'])(
+      'rejects an API key containing control characters',
+      key => {
+        expect(() => new OnetClient(key)).toThrow(OnetValidationError);
+      }
+    );
+
+    it('refuses to follow redirects', async () => {
+      const fetchSpy = mock(okFetch);
+      await new OnetClient('key', {fetch: fetchSpy}).getOccupation(
+        '15-1252.00'
+      );
+      expect(fetchSpy.mock.calls[0]?.[1].redirect).toBe('error');
+    });
+  });
+
   describe('relative baseUrl', () => {
     it('resolves against the page origin in a browser', async () => {
       const originalLocation = globalThis.location;
