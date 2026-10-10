@@ -7,6 +7,9 @@ export const DEFAULT_BASE_URL = 'https://services.onetcenter.org/ws';
 /** Longest slice of an error response body copied into an error message. */
 const MAX_ERROR_BODY_LENGTH = 500;
 
+/** Characters that must never appear in an HTTP header value. */
+const INVALID_HEADER_VALUE_PATTERN = /[\r\n\0]/;
+
 /** Minimal `fetch` signature the transport relies on, so any wrapper or polyfill fits. */
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -70,6 +73,12 @@ export class OnetTransport {
     private readonly apiKey: string | undefined,
     private readonly options: OnetClientOptions = {}
   ) {
+    if (apiKey !== undefined && INVALID_HEADER_VALUE_PATTERN.test(apiKey)) {
+      throw new OnetValidationError(
+        'Invalid O*NET API key: it contains a carriage return, line feed or NUL ' +
+          'character, which cannot be sent in an HTTP header.'
+      );
+    }
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? 0);
     this.cacheMaxEntries = Math.max(1, options.cacheMaxEntries ?? 100);
@@ -156,7 +165,8 @@ export class OnetTransport {
 
     let response: Response;
     try {
-      response = await fetchImpl(url, {headers, signal});
+      // A redirect could carry the API key to a different path or host.
+      response = await fetchImpl(url, {headers, signal, redirect: 'error'});
     } catch (error: unknown) {
       if (isAbortError(error)) throw error;
       throw new OnetRequestError(
@@ -199,14 +209,27 @@ export class OnetTransport {
  */
 function resolveUrl(href: string): URL {
   const pageUrl = globalThis.location?.href;
+  let url: URL;
   try {
-    return new URL(href, pageUrl);
+    url = new URL(href, pageUrl);
   } catch {
     throw new OnetValidationError(
       `Cannot build an O*NET request URL from "${href}": a relative baseUrl ` +
         'only works in a browser. Use an absolute URL such as https://example.com/api/onet.'
     );
   }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new OnetValidationError(
+      `Invalid baseUrl: protocol "${url.protocol}" is not allowed. Use an http: or https: URL.`
+    );
+  }
+  if (url.username || url.password) {
+    throw new OnetValidationError(
+      'Invalid baseUrl: it must not contain a username or password. ' +
+        'Pass the API key through the OnetClient constructor instead.'
+    );
+  }
+  return url;
 }
 
 /** Reads an error response body for diagnostics, never throwing and capping its length. */
