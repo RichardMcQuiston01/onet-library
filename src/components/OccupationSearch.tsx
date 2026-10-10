@@ -10,7 +10,11 @@ const DEFAULT_PAGE_SIZE = 20;
 export interface OccupationSearchProps {
   /** Shared `OnetClient` instance. */
   client: OnetClient;
-  /** Results requested per page. @defaultValue `20` */
+  /**
+   * Results requested per page; must be a positive integer, otherwise the
+   * default is used.
+   * @defaultValue `20`
+   */
   pageSize?: number;
   /** Placeholder text for the search box. */
   placeholder?: string;
@@ -33,11 +37,16 @@ export interface OccupationSearchProps {
  */
 export function OccupationSearch({
   client,
-  pageSize = DEFAULT_PAGE_SIZE,
+  pageSize: requestedPageSize = DEFAULT_PAGE_SIZE,
   placeholder = 'Search occupations...',
   onSelect,
   renderOccupation = defaultRenderOccupation,
 }: OccupationSearchProps): ReactElement {
+  // A zero, negative or fractional size would produce page bounds the API rejects.
+  const pageSize =
+    Number.isInteger(requestedPageSize) && requestedPageSize >= 1
+      ? requestedPageSize
+      : DEFAULT_PAGE_SIZE;
   const [keyword, setKeyword] = useState('');
   // The keyword behind the visible results, so paging is unaffected by edits
   // to the input that have not been submitted yet.

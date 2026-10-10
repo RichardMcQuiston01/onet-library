@@ -238,10 +238,48 @@ describe('OnetClient', () => {
     });
 
     it('includes the status code on OnetApiError', async () => {
-      fetchMock.mockResolvedValue(mockError(422, 'Invalid keyword'));
-      const error = await client.searchOccupations({keyword: ''}).catch(e => e);
+      fetchMock.mockResolvedValue(mockError(422, 'Invalid parameter'));
+      const error = await client
+        .searchOccupations({keyword: 'software'})
+        .catch(e => e);
       expect(error).toBeInstanceOf(OnetApiError);
       expect((error as OnetApiError).status).toBe(422);
+    });
+  });
+
+  describe('pagination and keyword validation', () => {
+    it.each([
+      [{start: 0}],
+      [{start: -1}],
+      [{start: 1.5}],
+      [{end: 0}],
+      [{end: 2.5}],
+      [{start: Number.NaN}],
+      [{start: 5, end: 4}],
+    ])('rejects page bounds %p without sending a request', async params => {
+      await expect(
+        client.getOccupationSummary('15-1252.00', 'skills', params)
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      await expect(
+        client.searchOccupations({keyword: 'nurse', ...params})
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['', '   ', '\t\n'])(
+      'rejects the blank keyword %p without sending a request',
+      async keyword => {
+        await expect(
+          client.searchOccupations({keyword})
+        ).rejects.toBeInstanceOf(OnetValidationError);
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+    );
+
+    it('accepts valid bounds', async () => {
+      fetchMock.mockResolvedValue(mockOk(mockSearchResponse));
+      await client.searchOccupations({keyword: 'nurse', start: 1, end: 1});
+      expect(lastCallUrl().searchParams.get('end')).toBe('1');
     });
   });
 
