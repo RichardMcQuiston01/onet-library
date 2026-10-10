@@ -1,4 +1,12 @@
-import {describe, it, expect, mock, beforeEach, afterEach} from 'bun:test';
+import {
+  describe,
+  it,
+  expect,
+  mock,
+  spyOn,
+  beforeEach,
+  afterEach,
+} from 'bun:test';
 import {OnetClient, OnetApiError} from './OnetClient';
 import {OnetRequestError, OnetValidationError} from './errors';
 import type {FetchLike} from './OnetTransport';
@@ -685,6 +693,71 @@ describe('OnetClient', () => {
       await cached.searchOccupations({keyword: 'a'});
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+
+    it('starts the TTL when the response arrives and joins slow in-flight requests', async () => {
+      let now = 1_000;
+      const dateSpy = spyOn(Date, 'now').mockImplementation(() => now);
+      try {
+        let release!: (response: Response) => void;
+        fetchMock.mockImplementation(
+          () => new Promise<Response>(resolve => (release = resolve))
+        );
+        const cached = new OnetClient('key', {cacheTtlMs: 100});
+        const first = cached.searchOccupations({keyword: 'a'});
+        // Longer than the TTL has passed, but the request is still running.
+        now += 500;
+        const second = cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        release(mockOk(mockSearchResponse));
+        await Promise.all([first, second]);
+
+        // The TTL began at the response, so the success is still reusable.
+        now += 50;
+        await cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        now += 100;
+        fetchMock.mockResolvedValue(mockOk(mockSearchResponse));
+        await cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        dateSpy.mockRestore();
+      }
+    });
+
+    it('gives each caller its own copy of the response', async () => {
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(mockOk(structuredClone(mockSearchResponse)))
+      );
+      const cached = new OnetClient('key', {cacheTtlMs: 60_000});
+      const [shared, sharedToo] = await Promise.all([
+        cached.searchOccupations({keyword: 'a'}),
+        cached.searchOccupations({keyword: 'a'}),
+      ]);
+      shared.occupation.pop();
+      expect(sharedToo.occupation).toHaveLength(2);
+
+      const later = await cached.searchOccupations({keyword: 'a'});
+      expect(later.occupation).toHaveLength(2);
+      later.occupation.pop();
+      expect(
+        (await cached.searchOccupations({keyword: 'a'})).occupation
+      ).toHaveLength(2);
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, -5])(
+      'treats cacheTtlMs=%p as caching off',
+      async cacheTtlMs => {
+        fetchMock.mockImplementation(() =>
+          Promise.resolve(mockOk(mockSearchResponse))
+        );
+        const uncached = new OnetClient('key', {cacheTtlMs});
+        await uncached.searchOccupations({keyword: 'a'});
+        await uncached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      }
+    );
 
     it('lets one caller abort without cancelling the shared request', async () => {
       fetchMock.mockResolvedValue(mockOk(mockSearchResponse));

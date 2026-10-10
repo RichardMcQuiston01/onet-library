@@ -47,7 +47,7 @@ export type QueryParams = Readonly<Record<string, string | number | undefined>>;
 
 interface CacheEntry {
   expiresAt: number;
-  promise: Promise<unknown>;
+  value: unknown;
 }
 
 /**
@@ -59,7 +59,10 @@ export class OnetTransport {
   private readonly baseUrl: string;
   private readonly cacheTtlMs: number;
   private readonly cacheMaxEntries: number;
+  /** Successful responses, keyed by URL; the TTL starts when the response arrives. */
   private readonly cache = new Map<string, CacheEntry>();
+  /** Requests still running, keyed by URL, so identical calls share one fetch regardless of TTL. */
+  private readonly inFlight = new Map<string, Promise<unknown>>();
 
   /**
    * @param apiKey O*NET API key sent as the `X-API-Key` header. Leave it
@@ -71,7 +74,11 @@ export class OnetTransport {
     private readonly options: OnetClientOptions = {}
   ) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
-    this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? 0);
+    const requestedTtlMs = options.cacheTtlMs ?? 0;
+    // NaN and Infinity would produce an expiry that never matches; treat them as "off".
+    this.cacheTtlMs = Number.isFinite(requestedTtlMs)
+      ? Math.max(0, requestedTtlMs)
+      : 0;
     this.cacheMaxEntries = Math.max(1, options.cacheMaxEntries ?? 100);
   }
 
@@ -98,9 +105,10 @@ export class OnetTransport {
     return withAbort(this.getCached<T>(url, path), requestOptions.signal);
   }
 
-  /** Drops every cached response. */
+  /** Drops every cached response and stops sharing requests that are still running. */
   clearCache(): void {
     this.cache.clear();
+    this.inFlight.clear();
   }
 
   private buildUrl(path: string, query?: QueryParams): string {
@@ -113,24 +121,41 @@ export class OnetTransport {
     return url.toString();
   }
 
-  private getCached<T>(url: string, path: string): Promise<T> {
-    const now = Date.now();
+  /**
+   * Returns a private copy of the cached value for `url`, fetching it if
+   * needed. Concurrent calls join one request; the TTL starts when it succeeds.
+   * Every caller gets its own clone, so mutating a result cannot change what
+   * later callers receive.
+   */
+  private async getCached<T>(url: string, path: string): Promise<T> {
     const cached = this.cache.get(url);
-    if (cached && cached.expiresAt > now) {
-      return cached.promise as Promise<T>;
+    if (cached && cached.expiresAt > Date.now()) {
+      return structuredClone(cached.value) as T;
     }
-
-    const promise = this.send<T>(url, path);
     this.cache.delete(url);
-    this.cache.set(url, {expiresAt: now + this.cacheTtlMs, promise});
-    // Failures should be retried on the next call, not replayed from cache.
-    promise.catch(() => {
-      if (this.cache.get(url)?.promise === promise) {
-        this.cache.delete(url);
-      }
-    });
-    this.evictOverflow();
-    return promise;
+
+    let request = this.inFlight.get(url) as Promise<T> | undefined;
+    if (!request) {
+      const started: Promise<T> = this.send<T>(url, path).then(value => {
+        // Skip the write if clearCache() ran while the request was in flight.
+        if (this.inFlight.get(url) === started) {
+          this.cache.set(url, {
+            expiresAt: Date.now() + this.cacheTtlMs,
+            value,
+          });
+          this.evictOverflow();
+        }
+        return value;
+      });
+      request = started;
+      this.inFlight.set(url, started);
+      // Failures are not cached, so the next call retries.
+      const forget = (): void => {
+        if (this.inFlight.get(url) === started) this.inFlight.delete(url);
+      };
+      started.then(forget, forget);
+    }
+    return structuredClone(await request);
   }
 
   private evictOverflow(): void {
