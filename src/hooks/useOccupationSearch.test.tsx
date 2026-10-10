@@ -68,7 +68,7 @@ describe('useOccupationSearch', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('sets error and clears data on failure', async () => {
+  it('sets error on failure', async () => {
     const client = makeMockClient({
       searchOccupations: mock(() => Promise.reject(new Error('Network error'))),
     });
@@ -84,14 +84,59 @@ describe('useOccupationSearch', () => {
     expect(result.current.data).toBeNull();
   });
 
+  it('keeps the previous results when a later search fails', async () => {
+    const searchOccupations = mock()
+      .mockResolvedValueOnce(mockData)
+      .mockRejectedValueOnce(new Error('Network error'));
+    const client = makeMockClient({searchOccupations});
+    const {result} = renderHook(() => useOccupationSearch(client));
+
+    await act(async () => {
+      await result.current.search({keyword: 'software'});
+    });
+    await act(async () => {
+      await result.current.search({keyword: 'software', start: 21});
+    });
+
+    expect(result.current.data).toEqual(mockData);
+    expect(result.current.error?.message).toBe('Network error');
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('aborts the in-flight search and clears loading when the client changes', async () => {
+    let signal: AbortSignal | undefined;
+    const slowClient = makeMockClient({
+      searchOccupations: mock(
+        (_params: unknown, options: {signal: AbortSignal}) => {
+          signal = options.signal;
+          return new Promise<never>(() => {});
+        }
+      ),
+    });
+    const nextClient = makeMockClient();
+    const {result, rerender} = renderHook(
+      ({client}) => useOccupationSearch(client),
+      {initialProps: {client: slowClient}}
+    );
+
+    act(() => {
+      void result.current.search({keyword: 'nurse'});
+    });
+    expect(result.current.loading).toBe(true);
+
+    rerender({client: nextClient});
+
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.loading).toBe(false);
+  });
+
   it('clears a previous error on a successful retry', async () => {
     const searchOccupations = mock()
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(mockData);
 
-    const {result} = renderHook(() =>
-      useOccupationSearch(makeMockClient({searchOccupations}))
-    );
+    const client = makeMockClient({searchOccupations});
+    const {result} = renderHook(() => useOccupationSearch(client));
 
     await act(async () => {
       await result.current.search({keyword: 'software'});
@@ -113,9 +158,8 @@ describe('useOccupationSearch', () => {
           resolvers.set(keyword, resolve);
         })
     );
-    const {result} = renderHook(() =>
-      useOccupationSearch(makeMockClient({searchOccupations}))
-    );
+    const client = makeMockClient({searchOccupations});
+    const {result} = renderHook(() => useOccupationSearch(client));
 
     act(() => {
       void result.current.search({keyword: 'nurse'});
@@ -144,9 +188,8 @@ describe('useOccupationSearch', () => {
         return new Promise<never>(() => {});
       }
     );
-    const {result} = renderHook(() =>
-      useOccupationSearch(makeMockClient({searchOccupations}))
-    );
+    const client = makeMockClient({searchOccupations});
+    const {result} = renderHook(() => useOccupationSearch(client));
 
     act(() => {
       void result.current.search({keyword: 'nurse'});
@@ -167,9 +210,8 @@ describe('useOccupationSearch', () => {
         return new Promise<never>(() => {});
       }
     );
-    const {result, unmount} = renderHook(() =>
-      useOccupationSearch(makeMockClient({searchOccupations}))
-    );
+    const client = makeMockClient({searchOccupations});
+    const {result, unmount} = renderHook(() => useOccupationSearch(client));
 
     act(() => {
       void result.current.search({keyword: 'nurse'});
@@ -189,9 +231,8 @@ describe('useOccupationSearch', () => {
             resolveSecond = resolve;
           })
       );
-    const {result} = renderHook(() =>
-      useOccupationSearch(makeMockClient({searchOccupations}))
-    );
+    const client = makeMockClient({searchOccupations});
+    const {result} = renderHook(() => useOccupationSearch(client));
 
     await act(async () => {
       await result.current.search({keyword: 'software'});

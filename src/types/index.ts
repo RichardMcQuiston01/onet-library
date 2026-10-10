@@ -6,8 +6,9 @@
 /** State returned by every declarative data hook. */
 export interface OnetQueryResult<T> {
   /**
-   * Latest successful response. While a refetch is loading this still holds
-   * the previous response, so check `loading` before treating it as current.
+   * Latest successful response. While a refetch is loading, and after a
+   * refetch fails, this still holds the previous response, so check `loading`
+   * and `error` before treating it as current.
    */
   data: T | null;
   /** True while a request is in flight. */
@@ -50,6 +51,12 @@ export interface ContentLink {
   title: string;
 }
 
+/** A Bright Outlook category on an occupation overview (no `href`, unlike {@link ContentLink}). */
+export interface BrightOutlookCategory {
+  code: string;
+  title: string;
+}
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 export interface OccupationSearchParams extends PaginationParams {
@@ -80,7 +87,7 @@ export interface OccupationOverview {
   description: string;
   sample_of_reported_titles?: string[];
   also_see?: OccupationReference[];
-  bright_outlook?: ContentLink[];
+  bright_outlook?: BrightOutlookCategory[];
   updated?: OccupationUpdated;
   summary_contents: ContentLink[];
   details_contents: ContentLink[];

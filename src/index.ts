@@ -48,6 +48,7 @@ export type {
   OccupationSearchResult,
   // Occupation overview
   OccupationOverview,
+  BrightOutlookCategory,
   OccupationUpdated,
   OccupationUpdatedContent,
   // Summary — section lookup

@@ -4,11 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Configure required reviewers on this environment in the repo settings.
+    environment: npm-publish
     permissions:
       contents: read
       id-token: write # required for npm provenance
@@ -19,7 +20,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -28,7 +29,6 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Verify tag matches package.json version
-        if: github.event_name == 'push'
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"

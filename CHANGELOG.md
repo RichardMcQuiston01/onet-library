@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-10-10
+
+### Security
+- **Summary section allowlist:** `getOccupationSummary` (and `useOccupationSummary`) now reject any section name that is not a known section with `OnetValidationError`. Previously a runtime value such as `../../admin`, `skills?x=1` or `a#b` could rewrite the request path or query.
+- **`baseUrl` and API key validation:** only `http:` and `https:` base URLs are accepted, URLs containing a username or password are rejected, and API keys containing CR, LF or NUL are rejected, all with `OnetValidationError` before any request. Requests now use `redirect: 'error'` so a 3xx cannot carry the API key elsewhere.
+- **Upstream error bodies are no longer shown to users:** `OnetApiError.message` is now only the status line. The truncated response body moves to the new `OnetApiError.responseBody` field for server-side logging. `OccupationSearch` shows a fixed message plus the HTTP status.
+- **Workflows:** publishing runs only from `vX.Y.Z` tags (the manual `workflow_dispatch` trigger was removed, so the tag/version check always applies) and is gated on an `npm-publish` environment. CI runs with read-only contents permission. Bun is pinned to 1.4.2.
+
+### Fixed
+- **Stale hook data:** declarative hooks now report `loading: true` on the same render that sees a new `code`, so the previous occupation is never presented as current.
+- **Cache:** identical requests share one in-flight fetch regardless of TTL, the TTL starts when the response succeeds, each caller receives its own copy (mutating a result no longer changes later results), and a non-finite `cacheTtlMs` turns caching off.
+- **Validation:** `start`, `end` and `keyword` are validated locally (`start`/`end` integers ≥ 1, `end ≥ start`, non-blank keyword). `OccupationSearch` falls back to the default page size when `pageSize` is not a positive integer.
+- **Types:** `OccupationOverview.bright_outlook` is now `BrightOutlookCategory[]` (`{code, title}`) to match the O\*NET schema; it was incorrectly typed as `ContentLink[]`.
+
+### Changed
+- **Behavior change:** `OnetApiError.message` no longer includes the response body (see `responseBody`).
+- **Behavior change:** when a request fails, `useOccupation*` hooks and `useOccupationSearch` keep the previous `data` and set `error`, instead of clearing `data`. Check `error` and `loading` before treating `data` as current.
+- `useOccupationSearch` aborts the in-flight search when its `client` argument changes.
+- `searchOccupations` and `getOccupationSummary` now reject with `OnetValidationError` for invalid bounds or an empty keyword, where the API previously answered 422.
+
 ## [1.3.0] — 2026-10-05
 
 ### Fixed

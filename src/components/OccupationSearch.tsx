@@ -2,6 +2,7 @@ import {useState} from 'react';
 import type {FormEvent, ReactElement, ReactNode} from 'react';
 import {useOccupationSearch} from '../hooks/useOccupationSearch';
 import type {OnetClient} from '../client/OnetClient';
+import {OnetApiError} from '../client/errors';
 import type {OccupationReference} from '../types';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -10,7 +11,11 @@ const DEFAULT_PAGE_SIZE = 20;
 export interface OccupationSearchProps {
   /** Shared `OnetClient` instance. */
   client: OnetClient;
-  /** Results requested per page. @defaultValue `20` */
+  /**
+   * Results requested per page; must be a positive integer, otherwise the
+   * default is used.
+   * @defaultValue `20`
+   */
   pageSize?: number;
   /** Placeholder text for the search box. */
   placeholder?: string;
@@ -33,11 +38,16 @@ export interface OccupationSearchProps {
  */
 export function OccupationSearch({
   client,
-  pageSize = DEFAULT_PAGE_SIZE,
+  pageSize: requestedPageSize = DEFAULT_PAGE_SIZE,
   placeholder = 'Search occupations...',
   onSelect,
   renderOccupation = defaultRenderOccupation,
 }: OccupationSearchProps): ReactElement {
+  // A zero, negative or fractional size would produce page bounds the API rejects.
+  const pageSize =
+    Number.isInteger(requestedPageSize) && requestedPageSize >= 1
+      ? requestedPageSize
+      : DEFAULT_PAGE_SIZE;
   const [keyword, setKeyword] = useState('');
   // The keyword behind the visible results, so paging is unaffected by edits
   // to the input that have not been submitted yet.
@@ -75,7 +85,7 @@ export function OccupationSearch({
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
-      {error && <p role="alert">{error.message}</p>}
+      {error && <p role="alert">{describeSearchError(error)}</p>}
       {data && (
         <>
           <p aria-live="polite">
@@ -133,4 +143,14 @@ function defaultRenderOccupation(occupation: OccupationReference): ReactNode {
       {occupation.tags.bright_outlook && ' ★'}
     </>
   );
+}
+
+/**
+ * Fixed, user-safe text for a failed search. The error's own message can carry
+ * upstream details (see `OnetApiError.responseBody`), so it is never shown.
+ */
+function describeSearchError(error: Error): string {
+  return error instanceof OnetApiError
+    ? `The occupation search failed (HTTP ${error.status}). Please try again.`
+    : 'The occupation search failed. Please try again.';
 }

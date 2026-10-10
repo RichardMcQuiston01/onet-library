@@ -1,7 +1,16 @@
-import {describe, it, expect, mock, beforeEach, afterEach} from 'bun:test';
+import {
+  describe,
+  it,
+  expect,
+  mock,
+  spyOn,
+  beforeEach,
+  afterEach,
+} from 'bun:test';
 import {OnetClient, OnetApiError} from './OnetClient';
 import {OnetRequestError, OnetValidationError} from './errors';
 import type {FetchLike} from './OnetTransport';
+import type {OccupationOverview} from '../types';
 
 const client = new OnetClient('test-api-key');
 
@@ -238,10 +247,78 @@ describe('OnetClient', () => {
     });
 
     it('includes the status code on OnetApiError', async () => {
-      fetchMock.mockResolvedValue(mockError(422, 'Invalid keyword'));
-      const error = await client.searchOccupations({keyword: ''}).catch(e => e);
+      fetchMock.mockResolvedValue(mockError(422, 'Invalid parameter'));
+      const error = await client
+        .searchOccupations({keyword: 'software'})
+        .catch(e => e);
       expect(error).toBeInstanceOf(OnetApiError);
       expect((error as OnetApiError).status).toBe(422);
+    });
+  });
+
+  describe('getOccupationSummary section validation', () => {
+    it.each([
+      '..',
+      '../',
+      '../../../../../../internal/admin',
+      'skills?injected=1',
+      'skills#fragment',
+      'skills/extra',
+      '__proto__',
+      'constructor',
+      '',
+    ])('rejects the section %p without sending a request', async section => {
+      await expect(
+        client.getOccupationSummary(
+          '15-1252.00',
+          section as unknown as 'skills'
+        )
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still accepts every known section', async () => {
+      fetchMock.mockResolvedValue(mockOk(mockElementSummary));
+      await client.getOccupationSummary('15-1252.00', 'work_styles');
+      expect(lastCallUrl().pathname).toBe(
+        '/ws/online/occupations/15-1252.00/summary/work_styles'
+      );
+    });
+  });
+
+  describe('pagination and keyword validation', () => {
+    it.each([
+      [{start: 0}],
+      [{start: -1}],
+      [{start: 1.5}],
+      [{end: 0}],
+      [{end: 2.5}],
+      [{start: Number.NaN}],
+      [{start: 5, end: 4}],
+    ])('rejects page bounds %p without sending a request', async params => {
+      await expect(
+        client.getOccupationSummary('15-1252.00', 'skills', params)
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      await expect(
+        client.searchOccupations({keyword: 'nurse', ...params})
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['', '   ', '\t\n'])(
+      'rejects the blank keyword %p without sending a request',
+      async keyword => {
+        await expect(
+          client.searchOccupations({keyword})
+        ).rejects.toBeInstanceOf(OnetValidationError);
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+    );
+
+    it('accepts valid bounds', async () => {
+      fetchMock.mockResolvedValue(mockOk(mockSearchResponse));
+      await client.searchOccupations({keyword: 'nurse', start: 1, end: 1});
+      expect(lastCallUrl().searchParams.get('end')).toBe('1');
     });
   });
 
@@ -257,6 +334,21 @@ describe('OnetClient', () => {
       const result = await client.getOccupation('15-1252.00');
       expect(result.code).toBe('15-1252.00');
       expect(result.description).toBeTruthy();
+    });
+
+    it('types bright_outlook items as {code, title} per the OpenAPI schema', async () => {
+      // Shape taken from /online/occupations/{code}/ in the OpenAPI spec.
+      const overview: OccupationOverview = {
+        ...mockOverview,
+        bright_outlook: [{code: 'GROWTH', title: 'Rapid Growth'}],
+      };
+      fetchMock.mockResolvedValue(mockOk(overview));
+      const result = await client.getOccupation('15-1252.00');
+      const outlook = result.bright_outlook?.[0];
+      expect(outlook?.code).toBe('GROWTH');
+      expect(outlook?.title).toBe('Rapid Growth');
+      // @ts-expect-error bright_outlook items have no href
+      void outlook?.href;
     });
 
     it('throws OnetApiError on 404', async () => {
@@ -501,7 +593,7 @@ describe('OnetClient', () => {
   });
 
   describe('error reporting', () => {
-    it('includes the endpoint, status and body in the message', async () => {
+    it('keeps the body out of the message and exposes it as responseBody', async () => {
       fetchMock.mockResolvedValue(
         mockError(404, 'Occupation not found', 'Not Found')
       );
@@ -509,8 +601,9 @@ describe('OnetClient', () => {
         .getOccupation('00-0000.00')
         .catch(e => e)) as OnetApiError;
       expect(error.message).toBe(
-        'O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found: Occupation not found'
+        'O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found'
       );
+      expect(error.responseBody).toBe('Occupation not found');
       expect(error.endpoint).toBe('/online/occupations/00-0000.00/');
     });
 
@@ -519,8 +612,9 @@ describe('OnetClient', () => {
       const error = (await client
         .searchOccupations({keyword: 'a'})
         .catch(e => e)) as OnetApiError;
-      expect(error.message.length).toBeLessThan(700);
-      expect(error.message.endsWith('…')).toBe(true);
+      expect(error.message).not.toContain('xxx');
+      expect(error.responseBody.length).toBeLessThan(700);
+      expect(error.responseBody.endsWith('…')).toBe(true);
     });
 
     it('wraps network failures in OnetRequestError with the cause', async () => {
@@ -581,6 +675,52 @@ describe('OnetClient', () => {
         (init.headers as Record<string, string>)['X-API-Key']
       ).toBeUndefined();
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('baseUrl and API key validation', () => {
+    const okFetch: FetchLike = mock(() =>
+      Promise.resolve(new Response('{}', {status: 200}))
+    );
+
+    it.each([
+      'javascript:alert(1)/online/search',
+      'file:///C:/Windows/win.ini',
+      'ftp://example.com/ws',
+    ])('rejects the non-HTTP baseUrl %s before any request', async baseUrl => {
+      const fetchSpy = mock(okFetch);
+      const guarded = new OnetClient('key', {baseUrl, fetch: fetchSpy});
+      await expect(guarded.getOccupation('15-1252.00')).rejects.toBeInstanceOf(
+        OnetValidationError
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects a baseUrl containing credentials', async () => {
+      const fetchSpy = mock(okFetch);
+      const guarded = new OnetClient('key', {
+        baseUrl: 'https://user:secret@evil.test/ws',
+        fetch: fetchSpy,
+      });
+      await expect(guarded.getOccupation('15-1252.00')).rejects.toBeInstanceOf(
+        OnetValidationError
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each(['bad\r\nX-Evil: 1', 'bad\nkey', 'bad\0key'])(
+      'rejects an API key containing control characters',
+      key => {
+        expect(() => new OnetClient(key)).toThrow(OnetValidationError);
+      }
+    );
+
+    it('refuses to follow redirects', async () => {
+      const fetchSpy = mock(okFetch);
+      await new OnetClient('key', {fetch: fetchSpy}).getOccupation(
+        '15-1252.00'
+      );
+      expect(fetchSpy.mock.calls[0]?.[1].redirect).toBe('error');
     });
   });
 
@@ -685,6 +825,71 @@ describe('OnetClient', () => {
       await cached.searchOccupations({keyword: 'a'});
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+
+    it('starts the TTL when the response arrives and joins slow in-flight requests', async () => {
+      let now = 1_000;
+      const dateSpy = spyOn(Date, 'now').mockImplementation(() => now);
+      try {
+        let release!: (response: Response) => void;
+        fetchMock.mockImplementation(
+          () => new Promise<Response>(resolve => (release = resolve))
+        );
+        const cached = new OnetClient('key', {cacheTtlMs: 100});
+        const first = cached.searchOccupations({keyword: 'a'});
+        // Longer than the TTL has passed, but the request is still running.
+        now += 500;
+        const second = cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        release(mockOk(mockSearchResponse));
+        await Promise.all([first, second]);
+
+        // The TTL began at the response, so the success is still reusable.
+        now += 50;
+        await cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        now += 100;
+        fetchMock.mockResolvedValue(mockOk(mockSearchResponse));
+        await cached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        dateSpy.mockRestore();
+      }
+    });
+
+    it('gives each caller its own copy of the response', async () => {
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(mockOk(structuredClone(mockSearchResponse)))
+      );
+      const cached = new OnetClient('key', {cacheTtlMs: 60_000});
+      const [shared, sharedToo] = await Promise.all([
+        cached.searchOccupations({keyword: 'a'}),
+        cached.searchOccupations({keyword: 'a'}),
+      ]);
+      shared.occupation.pop();
+      expect(sharedToo.occupation).toHaveLength(2);
+
+      const later = await cached.searchOccupations({keyword: 'a'});
+      expect(later.occupation).toHaveLength(2);
+      later.occupation.pop();
+      expect(
+        (await cached.searchOccupations({keyword: 'a'})).occupation
+      ).toHaveLength(2);
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, -5])(
+      'treats cacheTtlMs=%p as caching off',
+      async cacheTtlMs => {
+        fetchMock.mockImplementation(() =>
+          Promise.resolve(mockOk(mockSearchResponse))
+        );
+        const uncached = new OnetClient('key', {cacheTtlMs});
+        await uncached.searchOccupations({keyword: 'a'});
+        await uncached.searchOccupations({keyword: 'a'});
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      }
+    );
 
     it('lets one caller abort without cancelling the shared request', async () => {
       fetchMock.mockResolvedValue(mockOk(mockSearchResponse));
