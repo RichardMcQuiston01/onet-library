@@ -87,11 +87,17 @@ export class OnetClient {
   // ── Search ────────────────────────────────────────────────────────────────
 
   /** Finds occupations matching a keyword (`GET /online/search`). */
-  searchOccupations(
+  async searchOccupations(
     params: OccupationSearchParams,
     options?: RequestOptions
   ): Promise<OccupationSearchResult> {
     const {keyword, start, end} = params;
+    if (keyword.trim() === '') {
+      throw new OnetValidationError(
+        'Invalid search keyword: it must contain at least one non-whitespace character.'
+      );
+    }
+    validatePageBounds(start, end);
     return this.transport.get<OccupationSearchResult>(
       '/online/search',
       {keyword, start, end},
@@ -130,6 +136,7 @@ export class OnetClient {
     params?: PaginationParams,
     options?: RequestOptions
   ): Promise<OccupationSummarySectionMap[S]> {
+    validatePageBounds(params?.start, params?.end);
     return this.transport.get<OccupationSummarySectionMap[S]>(
       `${occupationPath(code)}/summary/${summarySectionPath(section)}`,
       {start: params?.start, end: params?.end},
@@ -331,4 +338,26 @@ function summarySectionPath(section: string): string {
     );
   }
   return section;
+}
+
+/**
+ * Checks `start`/`end` against the API schema (integers, `start >= 1`,
+ * `end >= start`) so bad bounds fail locally instead of as a 422.
+ */
+function validatePageBounds(start?: number, end?: number): void {
+  if (start !== undefined && (!Number.isInteger(start) || start < 1)) {
+    throw new OnetValidationError(
+      `Invalid start "${start}": it must be an integer greater than or equal to 1.`
+    );
+  }
+  if (end !== undefined && (!Number.isInteger(end) || end < 1)) {
+    throw new OnetValidationError(
+      `Invalid end "${end}": it must be an integer greater than or equal to 1.`
+    );
+  }
+  if (start !== undefined && end !== undefined && end < start) {
+    throw new OnetValidationError(
+      `Invalid page bounds: end (${end}) must be greater than or equal to start (${start}).`
+    );
+  }
 }

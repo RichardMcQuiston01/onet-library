@@ -52,6 +52,22 @@ describe('OccupationSearch', () => {
     expect(screen.getByText(/Occupation 1/).textContent).toContain('★');
   });
 
+  it.each([0, -3, 2.5, Number.NaN])(
+    'falls back to the default page size for the invalid pageSize %p',
+    async pageSize => {
+      const {client, searchOccupations} = makeClient();
+      render(<OccupationSearch client={client} pageSize={pageSize} />);
+      await userEvent.type(screen.getByRole('searchbox'), 'nurse');
+      await userEvent.click(screen.getByRole('button', {name: 'Search'}));
+
+      expect(searchOccupations.mock.calls[0][0]).toEqual({
+        keyword: 'nurse',
+        start: 1,
+        end: 20,
+      });
+    }
+  );
+
   it('pages forward and back using the submitted keyword', async () => {
     const {client, searchOccupations} = makeClient();
     render(<OccupationSearch client={client} pageSize={2} />);
