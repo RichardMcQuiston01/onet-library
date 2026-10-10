@@ -183,9 +183,9 @@ export class OnetTransport {
       const body = await readBodySafely(response);
       throw new OnetApiError(
         response.status,
-        `O*NET request GET ${path} failed with HTTP ${statusLabel}` +
-          (body ? `: ${body}` : ''),
-        path
+        `O*NET request GET ${path} failed with HTTP ${statusLabel}`,
+        path,
+        body
       );
     }
 
