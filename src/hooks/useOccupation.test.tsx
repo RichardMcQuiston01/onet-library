@@ -1,3 +1,4 @@
+import {useLayoutEffect} from 'react';
 import {describe, it, expect, mock} from 'bun:test';
 import {renderHook, waitFor, act} from '@testing-library/react';
 import {
@@ -379,5 +380,60 @@ describe('request lifecycle', () => {
       resolvers.get('15-1252.00')?.(mockOverview);
     });
     expect(result.current.data?.code).toBe('15-1253.00');
+  });
+});
+
+describe('stale data across input changes', () => {
+  it('reports loading on the very first render with a new code', async () => {
+    const client = makeMockClient();
+    const renders: {code: string; loading: boolean; dataCode?: string}[] = [];
+    const {rerender} = renderHook(
+      ({code}: {code: string | null}) => {
+        const result = useOccupation(client, code);
+        // Record committed output only; React discards the render pass that
+        // adjusts state, so pushing from the render body would be misleading.
+        useLayoutEffect(() => {
+          renders.push({
+            code: String(code),
+            loading: result.loading,
+            dataCode: result.data?.code,
+          });
+        });
+        return result;
+      },
+      {initialProps: {code: '15-1252.00'} as {code: string | null}}
+    );
+    await waitFor(() => expect(renders.at(-1)?.loading).toBe(false));
+
+    renders.length = 0;
+    rerender({code: '29-1141.00'});
+    // No render for the new code may look "finished" while holding old data.
+    expect(renders.every(entry => entry.loading)).toBe(true);
+
+    renders.length = 0;
+    rerender({code: null});
+    expect(renders.every(entry => !entry.loading)).toBe(true);
+    renders.length = 0;
+    rerender({code: '15-1252.00'});
+    expect(renders[0]?.loading).toBe(true);
+  });
+
+  it('keeps the previous data when a refetch fails', async () => {
+    const getOccupation = mock()
+      .mockResolvedValueOnce(mockOverview)
+      .mockRejectedValueOnce(new Error('Not found'));
+    const client = makeMockClient({getOccupation});
+    const {result, rerender} = renderHook(
+      ({code}) => useOccupation(client, code),
+      {initialProps: {code: '15-1252.00'}}
+    );
+    await waitFor(() => expect(result.current.data).toEqual(mockOverview));
+
+    rerender({code: '29-1141.00'});
+    await waitFor(() =>
+      expect(result.current.error?.message).toBe('Not found')
+    );
+    expect(result.current.data).toEqual(mockOverview);
+    expect(result.current.loading).toBe(false);
   });
 });
