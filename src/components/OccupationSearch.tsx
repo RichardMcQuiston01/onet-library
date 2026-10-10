@@ -2,6 +2,7 @@ import {useState} from 'react';
 import type {FormEvent, ReactElement, ReactNode} from 'react';
 import {useOccupationSearch} from '../hooks/useOccupationSearch';
 import type {OnetClient} from '../client/OnetClient';
+import {OnetApiError} from '../client/errors';
 import type {OccupationReference} from '../types';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -75,7 +76,7 @@ export function OccupationSearch({
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
-      {error && <p role="alert">{error.message}</p>}
+      {error && <p role="alert">{describeSearchError(error)}</p>}
       {data && (
         <>
           <p aria-live="polite">
@@ -133,4 +134,14 @@ function defaultRenderOccupation(occupation: OccupationReference): ReactNode {
       {occupation.tags.bright_outlook && ' ★'}
     </>
   );
+}
+
+/**
+ * Fixed, user-safe text for a failed search. The error's own message can carry
+ * upstream details (see `OnetApiError.responseBody`), so it is never shown.
+ */
+function describeSearchError(error: Error): string {
+  return error instanceof OnetApiError
+    ? `The occupation search failed (HTTP ${error.status}). Please try again.`
+    : 'The occupation search failed. Please try again.';
 }

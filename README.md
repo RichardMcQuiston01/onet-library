@@ -223,11 +223,11 @@ Every error the library throws extends `OnetError`:
 
 | Class                 | When                                                                  | Extra fields          |
 | --------------------- | --------------------------------------------------------------------- | --------------------- |
-| `OnetApiError`        | The API answered with a non-2xx status                                | `status`, `endpoint`  |
+| `OnetApiError`        | The API answered with a non-2xx status                                | `status`, `endpoint`, `responseBody` |
 | `OnetRequestError`    | The network call failed, or the response was not valid JSON           | `endpoint`, `cause`   |
 | `OnetValidationError` | An argument was malformed (e.g. a bad O\*NET-SOC code); nothing sent  | —                     |
 
-Messages name the endpoint and include the response body, e.g. `O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found: …`.
+Messages name the endpoint and status, e.g. `O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found`. The truncated upstream response body is kept on `OnetApiError.responseBody` for server-side logging; don't show it to end users. `OccupationSearch` displays a fixed message plus the HTTP status.
 
 ```typescript
 import { OnetApiError, OnetError } from "@richardmcquiston01/onet-library";

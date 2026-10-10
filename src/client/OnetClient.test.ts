@@ -501,7 +501,7 @@ describe('OnetClient', () => {
   });
 
   describe('error reporting', () => {
-    it('includes the endpoint, status and body in the message', async () => {
+    it('keeps the body out of the message and exposes it as responseBody', async () => {
       fetchMock.mockResolvedValue(
         mockError(404, 'Occupation not found', 'Not Found')
       );
@@ -509,8 +509,9 @@ describe('OnetClient', () => {
         .getOccupation('00-0000.00')
         .catch(e => e)) as OnetApiError;
       expect(error.message).toBe(
-        'O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found: Occupation not found'
+        'O*NET request GET /online/occupations/00-0000.00/ failed with HTTP 404 Not Found'
       );
+      expect(error.responseBody).toBe('Occupation not found');
       expect(error.endpoint).toBe('/online/occupations/00-0000.00/');
     });
 
@@ -519,8 +520,9 @@ describe('OnetClient', () => {
       const error = (await client
         .searchOccupations({keyword: 'a'})
         .catch(e => e)) as OnetApiError;
-      expect(error.message.length).toBeLessThan(700);
-      expect(error.message.endsWith('…')).toBe(true);
+      expect(error.message).not.toContain('xxx');
+      expect(error.responseBody.length).toBeLessThan(700);
+      expect(error.responseBody.endsWith('…')).toBe(true);
     });
 
     it('wraps network failures in OnetRequestError with the cause', async () => {

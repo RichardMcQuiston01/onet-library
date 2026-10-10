@@ -2,6 +2,7 @@ import {describe, it, expect, mock, afterEach} from 'bun:test';
 import {render, screen, cleanup} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {OccupationSearch} from './OccupationSearch';
+import {OnetApiError} from '../client/errors';
 import type {OnetClient} from '../client/OnetClient';
 import type {OccupationSearchParams} from '../types';
 
@@ -107,7 +108,7 @@ describe('OccupationSearch', () => {
     expect((await screen.findByText('15-1201.00')).tagName).toBe('EM');
   });
 
-  it('shows the error message on failure', async () => {
+  it('shows a fixed message for generic failures', async () => {
     const client = {
       searchOccupations: mock(() =>
         Promise.reject(new Error('Quota exceeded'))
@@ -118,7 +119,31 @@ describe('OccupationSearch', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Search'}));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Quota exceeded'
+      'The occupation search failed. Please try again.'
     );
+  });
+
+  it('shows the status but never the upstream body for API errors', async () => {
+    const client = {
+      searchOccupations: mock(() =>
+        Promise.reject(
+          new OnetApiError(
+            502,
+            'O*NET request GET /online/search failed with HTTP 502',
+            '/online/search',
+            'Traceback at /srv/internal/app.py host=db-7.corp.local'
+          )
+        )
+      ),
+    } as unknown as OnetClient;
+    render(<OccupationSearch client={client} />);
+    await userEvent.type(screen.getByRole('searchbox'), 'nurse');
+    await userEvent.click(screen.getByRole('button', {name: 'Search'}));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      'The occupation search failed (HTTP 502). Please try again.'
+    );
+    expect(alert.textContent).not.toContain('corp.local');
   });
 });
