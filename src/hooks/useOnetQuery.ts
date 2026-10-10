@@ -17,7 +17,9 @@ const IDLE_STATE: OnetQueryResult<never> = {
  * Runs `fetcher` whenever its identity changes, so callers must memoise it;
  * passing `null` resets to idle without requesting anything. When the fetcher
  * changes or the component unmounts, the in-flight request is aborted and its
- * result discarded. During a refetch the previous `data` stays visible.
+ * result discarded. During a refetch the previous `data` stays visible, and a
+ * failed refetch keeps it too (with `error` set), so check `loading` and
+ * `error` before treating `data` as belonging to the current inputs.
  */
 export function useOnetQuery<T>(
   fetcher: OnetFetcher<T> | null
@@ -27,14 +29,24 @@ export function useOnetQuery<T>(
   const [state, setState] = useState<OnetQueryResult<T>>(() =>
     fetcher === null ? IDLE_STATE : {...IDLE_STATE, loading: true}
   );
+  // Functions passed to useState/setState are treated as initializers/updaters, so wrap them.
+  const [trackedFetcher, setTrackedFetcher] = useState(() => fetcher);
+
+  // Adjust state while rendering, not in the effect: React re-renders at once
+  // and discards this pass, so `loading` is already true on the first render
+  // that sees new inputs and the previous occupation is never shown as current.
+  if (trackedFetcher !== fetcher) {
+    setTrackedFetcher(() => fetcher);
+    setState(previous =>
+      fetcher === null
+        ? IDLE_STATE
+        : {data: previous.data, loading: true, error: null}
+    );
+  }
 
   useEffect(() => {
-    if (fetcher === null) {
-      setState(IDLE_STATE);
-      return;
-    }
+    if (fetcher === null) return;
     const controller = new AbortController();
-    setState(previous => ({data: previous.data, loading: true, error: null}));
     fetcher(controller.signal).then(
       data => {
         if (!controller.signal.aborted) {
@@ -43,7 +55,12 @@ export function useOnetQuery<T>(
       },
       (error: unknown) => {
         if (!controller.signal.aborted) {
-          setState({data: null, loading: false, error: toError(error)});
+          // Keep the last good data so a failed refetch does not blank the UI.
+          setState(previous => ({
+            data: previous.data,
+            loading: false,
+            error: toError(error),
+          }));
         }
       }
     );

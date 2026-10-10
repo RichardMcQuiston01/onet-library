@@ -28,7 +28,8 @@ const INITIAL_STATE: OnetQueryResult<OccupationSearchResult> = {
  * Only the most recent search can update state: starting a new search (or
  * unmounting) aborts the previous request, so a slow earlier response can
  * never overwrite newer results. Previous results stay visible while the next
- * search loads.
+ * search loads, and after it fails (with `error` set). Changing `client` aborts
+ * the search in flight.
  *
  * @param client Shared `OnetClient` instance.
  */
@@ -38,7 +39,15 @@ export function useOccupationSearch(
   const [state, setState] = useState(INITIAL_STATE);
   const activeRequestRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => activeRequestRef.current?.abort(), []);
+  // Abort on unmount, and when `client` changes so a late response from the
+  // previous client cannot write state. The aborted search never reports back,
+  // so clear its loading flag here.
+  useEffect(() => {
+    setState(previous =>
+      previous.loading ? {...previous, loading: false} : previous
+    );
+    return () => activeRequestRef.current?.abort();
+  }, [client]);
 
   const search = useCallback(
     async (params: OccupationSearchParams): Promise<void> => {
@@ -56,7 +65,11 @@ export function useOccupationSearch(
         }
       } catch (error: unknown) {
         if (!controller.signal.aborted) {
-          setState({data: null, loading: false, error: toError(error)});
+          setState(previous => ({
+            data: previous.data,
+            loading: false,
+            error: toError(error),
+          }));
         }
       }
     },

@@ -6,8 +6,9 @@
 /** State returned by every declarative data hook. */
 export interface OnetQueryResult<T> {
   /**
-   * Latest successful response. While a refetch is loading this still holds
-   * the previous response, so check `loading` before treating it as current.
+   * Latest successful response. While a refetch is loading, and after a
+   * refetch fails, this still holds the previous response, so check `loading`
+   * and `error` before treating it as current.
    */
   data: T | null;
   /** True while a request is in flight. */
