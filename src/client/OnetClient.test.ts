@@ -245,6 +245,36 @@ describe('OnetClient', () => {
     });
   });
 
+  describe('getOccupationSummary section validation', () => {
+    it.each([
+      '..',
+      '../',
+      '../../../../../../internal/admin',
+      'skills?injected=1',
+      'skills#fragment',
+      'skills/extra',
+      '__proto__',
+      'constructor',
+      '',
+    ])('rejects the section %p without sending a request', async section => {
+      await expect(
+        client.getOccupationSummary(
+          '15-1252.00',
+          section as unknown as 'skills'
+        )
+      ).rejects.toBeInstanceOf(OnetValidationError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still accepts every known section', async () => {
+      fetchMock.mockResolvedValue(mockOk(mockElementSummary));
+      await client.getOccupationSummary('15-1252.00', 'work_styles');
+      expect(lastCallUrl().pathname).toBe(
+        '/ws/online/occupations/15-1252.00/summary/work_styles'
+      );
+    });
+  });
+
   describe('getOccupation', () => {
     it('calls the correct path', async () => {
       fetchMock.mockResolvedValue(mockOk(mockOverview));
