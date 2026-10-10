@@ -28,6 +28,30 @@ export {OnetApiError} from './errors';
 const ONET_SOC_CODE_PATTERN = /^\d{2}-\d{4}\.\d{2}$/;
 
 /**
+ * Runtime allowlist of summary section names. Typed as a full `Record` so the
+ * compiler fails if a section is added to `OccupationSummarySectionMap`
+ * without being listed here.
+ */
+const SUMMARY_SECTIONS: Readonly<Record<OccupationSummarySection, true>> = {
+  abilities: true,
+  skills: true,
+  knowledge: true,
+  work_styles: true,
+  work_activities: true,
+  work_context: true,
+  tasks: true,
+  technology_skills: true,
+  related_occupations: true,
+  job_zone: true,
+  interests: true,
+  education: true,
+  detailed_work_activities: true,
+  apprenticeship: true,
+  professional_associations: true,
+  military_career_summaries: true,
+};
+
+/**
  * Typed client for the O*NET Web Services `/online` portal.
  *
  * Create one instance per API key and share it; hooks and components take it
@@ -107,7 +131,7 @@ export class OnetClient {
     options?: RequestOptions
   ): Promise<OccupationSummarySectionMap[S]> {
     return this.transport.get<OccupationSummarySectionMap[S]>(
-      `${occupationPath(code)}/summary/${section}`,
+      `${occupationPath(code)}/summary/${summarySectionPath(section)}`,
       {start: params?.start, end: params?.end},
       options
     );
@@ -292,4 +316,19 @@ function occupationPath(code: string): string {
     );
   }
   return `/online/occupations/${encodeURIComponent(code)}`;
+}
+
+/**
+ * Accepts only known section names. `section` is a TypeScript type that
+ * disappears at runtime, and callers may pass a route param or query value, so
+ * values such as `..`, `skills?x=1` or `a#b` must never reach the URL.
+ */
+function summarySectionPath(section: string): string {
+  if (!Object.hasOwn(SUMMARY_SECTIONS, section)) {
+    throw new OnetValidationError(
+      `Invalid occupation summary section "${section}": expected one of ` +
+        `${Object.keys(SUMMARY_SECTIONS).join(', ')}.`
+    );
+  }
+  return section;
 }
