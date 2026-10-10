@@ -50,6 +50,12 @@ export interface ContentLink {
   title: string;
 }
 
+/** A Bright Outlook category on an occupation overview (no `href`, unlike {@link ContentLink}). */
+export interface BrightOutlookCategory {
+  code: string;
+  title: string;
+}
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 export interface OccupationSearchParams extends PaginationParams {
@@ -80,7 +86,7 @@ export interface OccupationOverview {
   description: string;
   sample_of_reported_titles?: string[];
   also_see?: OccupationReference[];
-  bright_outlook?: ContentLink[];
+  bright_outlook?: BrightOutlookCategory[];
   updated?: OccupationUpdated;
   summary_contents: ContentLink[];
   details_contents: ContentLink[];

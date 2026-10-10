@@ -2,6 +2,7 @@ import {describe, it, expect, mock, beforeEach, afterEach} from 'bun:test';
 import {OnetClient, OnetApiError} from './OnetClient';
 import {OnetRequestError, OnetValidationError} from './errors';
 import type {FetchLike} from './OnetTransport';
+import type {OccupationOverview} from '../types';
 
 const client = new OnetClient('test-api-key');
 
@@ -257,6 +258,21 @@ describe('OnetClient', () => {
       const result = await client.getOccupation('15-1252.00');
       expect(result.code).toBe('15-1252.00');
       expect(result.description).toBeTruthy();
+    });
+
+    it('types bright_outlook items as {code, title} per the OpenAPI schema', async () => {
+      // Shape taken from /online/occupations/{code}/ in the OpenAPI spec.
+      const overview: OccupationOverview = {
+        ...mockOverview,
+        bright_outlook: [{code: 'GROWTH', title: 'Rapid Growth'}],
+      };
+      fetchMock.mockResolvedValue(mockOk(overview));
+      const result = await client.getOccupation('15-1252.00');
+      const outlook = result.bright_outlook?.[0];
+      expect(outlook?.code).toBe('GROWTH');
+      expect(outlook?.title).toBe('Rapid Growth');
+      // @ts-expect-error bright_outlook items have no href
+      void outlook?.href;
     });
 
     it('throws OnetApiError on 404', async () => {
