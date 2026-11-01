@@ -22,9 +22,9 @@ See [QUICK_START.md](QUICK_START.md) for setup, commands, local testing, and a u
 
 If this app, code, or repository has helped you or someone you know, please consider donating. I appreciate any help to offset the costs of development and/or AI Credits.
 
-[**Donate via Stripe**](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800), or scan:
+[**Donate via PayPal**](https://www.paypal.com/ncp/payment/GAGZH3DEEDRAC), or scan:
 
-[![Donate via Stripe](./donate.svg)](https://donate.stripe.com/00w5kD3Gj1Xo9v7gVOcs800)
+[![Donate via PayPal](./donate.png)](https://www.paypal.com/ncp/payment/GAGZH3DEEDRAC)
 
 ---
 
